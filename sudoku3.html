@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="数独/ナンプレ">
+  <title>数独/ナンプレ</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    body { background: #fafaf8; font-family: 'Georgia', 'Times New Roman', serif; }
+    .overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+      display: flex; align-items: center; justify-content: center; z-index: 100;
+    }
+    .modal {
+      background: #fff; border-radius: 8px; padding: 24px; margin: 20px;
+      width: 100%; max-width: 340px;
+    }
+    .modal h2 { font-size: 16px; font-weight: 600; margin-bottom: 8px; color: #1a1a1a; }
+    .modal p { font-size: 12px; color: #888; margin-bottom: 16px; line-height: 1.6; }
+    .modal input {
+      width: 100%; border: 1px solid #d0d0cc; border-radius: 4px;
+      padding: 8px 10px; font-size: 13px; font-family: monospace; margin-bottom: 12px;
+    }
+    .modal button {
+      width: 100%; padding: 10px; background: #1a1a1a; color: #fff;
+      border: none; border-radius: 4px; font-size: 14px; cursor: pointer;
+      font-family: Georgia, serif;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script>
+  const { useState, useCallback, useEffect, useRef } = React;
+  const e = React.createElement;
+  const EMPTY = 0;
+  const STORAGE_KEY = "sudoku_gemini_key";
+
+function createEmptyGrid() {
+return Array.from({ length: 9 }, function() { return Array(9).fill(EMPTY); });
+}
+function createEmptyNotes() {
+return Array.from({ length: 9 }, function() { return Array.from({ length: 9 }, function() { return new Set(); }); });
+}
+function isValid(grid, row, col, num) {
+for (let c = 0; c < 9; c++) if (c !== col && grid[row][c] === num) return false;
+for (let r = 0; r < 9; r++) if (r !== row && grid[r][col] === num) return false;
+const br = Math.floor(row / 3) * 3, bc = Math.floor(col / 3) * 3;
+for (let r = br; r < br + 3; r++)
+for (let c = bc; c < bc + 3; c++)
+if ((r !== row || c !== col) && grid[r][c] === num) return false;
+return true;
+}
+function getConflicts(grid) {
+return Array.from({ length: 9 }, function(x, r) {
+return Array.from({ length: 9 }, function(x, c) {
+return grid[r][c] !== EMPTY && !isValid(grid, r, c, grid[r][c]);
+});
+});
+}
+function isBoardComplete(grid, conflicts) {
+return grid.every(function(row, r) { return row.every(function(v, c) { return v !== EMPTY && !conflicts[r][c]; }); });
+}
+function snapshot(grid, notes) {
+return { grid: grid.map(function(r) { return r.slice(); }), notes: notes.map(function(r) { return r.map(function(s) { return new Set(s); }); }) };
+}
+
+function ApiKeyModal({ onSave }) {
+const [val, setVal] = useState(””);
+return e(“div”, { className: “overlay” },
+e(“div”, { className: “modal” },
+e(“h2”, null, “🔑 Gemini APIキーを設定”),
+e(“p”, null, “Google AI Studioで取得したAPIキーを入力してください。この端末に保存され、次回から自動入力されます。”),
+e(“input”, { type: “password”, placeholder: “AIzaSy…”, value: val, onChange: ev => setVal(ev.target.value) }),
+e(“button”, { onClick: () => { if (val.trim()) onSave(val.trim()); } }, “保存して続ける”)
+)
+);
+}
+
+function SudokuApp() {
+const [grid, setGrid] = useState(createEmptyGrid);
+const [notes, setNotes] = useState(createEmptyNotes);
+const [fixed, setFixed] = useState(function() { return Array.from({ length: 9 }, function() { return Array(9).fill(false); }); });
+const [selected, setSelected] = useState(null);
+const [mode, setMode] = useState(“edit”);
+const [inputMode, setInputMode] = useState(“answer”);
+const [history, setHistory] = useState([]);
+const [complete, setComplete] = useState(false);
+const [cellSize, setCellSize] = useState(40);
+const [checkConflicts, setCheckConflicts] = useState(false);
+const [apiKey, setApiKey] = useState(() => { try { return localStorage.getItem(STORAGE_KEY) || “”; } catch(e) { return “”; } });
+const [showKeyModal, setShowKeyModal] = useState(false);
+const [scanning, setScanning] = useState(false);
+const [scanError, setScanError] = useState(””);
+const cameraRef = useRef(null);
+const libraryRef = useRef(null);
+
+```
+useEffect(() => {
+  const update = () => {
+    const vw = Math.min(window.innerWidth, 480);
+    setCellSize(Math.max(32, Math.min(52, Math.floor((vw - 32) / 9))));
+  };
+  update();
+  window.addEventListener("resize", update);
+  return () => window.removeEventListener("resize", update);
+}, []);
+
+const conflicts = checkConflicts ? getConflicts(grid) : Array.from({ length: 9 }, function() { return Array(9).fill(false); });
+
+useEffect(() => {
+  if (mode === "play") setComplete(isBoardComplete(grid, conflicts));
+}, [grid, mode]);
+
+const pushHistory = useCallback(() => {
+  setHistory(h => h.slice(-40).concat([snapshot(grid, notes)]));
+}, [grid, notes]);
+
+const handleInput = useCallback((val) => {
+  if (!selected) return;
+  const [r, c] = selected;
+  if (mode === "play" && fixed[r][c]) return;
+  pushHistory();
+  if (val === 0) {
+    const ng = grid.map(row => row.slice()); ng[r][c] = EMPTY;
+    const nn = notes.map(row => row.map(s => new Set(s))); nn[r][c] = new Set();
+    setGrid(ng); setNotes(nn); setComplete(false); return;
+  }
+  if (inputMode === "answer") {
+    const ng = grid.map(row => row.slice()); ng[r][c] = val;
+    const nn = notes.map(row => row.map(s => new Set(s))); nn[r][c] = new Set();
+    setGrid(ng); setNotes(nn); setComplete(false);
+  } else {
+    if (grid[r][c] !== EMPTY) return;
+    const nn = notes.map(row => row.map(s => new Set(s)));
+    if (nn[r][c].has(val)) nn[r][c].delete(val); else nn[r][c].add(val);
+    setNotes(nn);
+  }
+}, [selected, mode, fixed, grid, notes, inputMode, pushHistory]);
+
+useEffect(() => {
+  const onKey = (ev) => {
+    if (!selected) return;
+    const [r, c] = selected;
+    const dirs = { ArrowUp: [-1,0], ArrowDown: [1,0], ArrowLeft: [0,-1], ArrowRight: [0,1] };
+    if (dirs[ev.key]) {
+      ev.preventDefault();
+      const [dr, dc] = dirs[ev.key];
+      setSelected([Math.max(0, Math.min(8, r+dr)), Math.max(0, Math.min(8, c+dc))]);
+      return;
+    }
+    if (ev.key >= "1" && ev.key <= "9") handleInput(parseInt(ev.key));
+    if (ev.key === "Backspace" || ev.key === "Delete" || ev.key === "0") handleInput(0);
+  };
+  window.addEventListener("keydown", onKey);
+  return () => window.removeEventListener("keydown", onKey);
+}, [selected, handleInput]);
+
+const undo = () => {
+  if (!history.length) return;
+  const prev = history[history.length - 1];
+  setGrid(prev.grid); setNotes(prev.notes);
+  setHistory(h => h.slice(0, -1)); setComplete(false);
+};
+const switchToPlay = () => {
+  setFixed(grid.map(row => row.map(v => v !== EMPTY)));
+  setMode("play"); setSelected(null); setComplete(false);
+};
+const switchToEdit = () => {
+  setMode("edit");
+  setFixed(Array.from({ length: 9 }, function() { return Array(9).fill(false); }));
+  setSelected(null); setComplete(false);
+};
+const clearAll = () => {
+  pushHistory();
+  setGrid(createEmptyGrid()); setNotes(createEmptyNotes());
+  setFixed(Array.from({ length: 9 }, function() { return Array(9).fill(false); }));
+  setSelected(null); setComplete(false); setMode("edit");
+};
+
+const handleScan = async (file) => {
+  if (!file) return;
+  if (!apiKey) { setShowKeyModal(true); return; }
+  setScanning(true); setScanError("");
+  try {
+    const base64 = await new Promise((res, rej) => {
+      const reader = new FileReader();
+      reader.onload = () => res(reader.result.split(",")[1]);
+      reader.onerror = rej;
+      reader.readAsDataURL(file);
+    });
+    const resp = await fetch(
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + apiKey,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{
+            parts: [
+              { inline_data: { mime_type: file.type || "image/jpeg", data: base64 } },
+              { text: "この画像は数独パズルです。9x9のグリッドを読み取り、各セルの数字を返してください。空白セルは0としてください。必ず以下のJSON形式のみで返答し、他のテキストは一切含めないでください：{\"grid\":[[r1c1,r1c2,r1c3,r1c4,r1c5,r1c6,r1c7,r1c8,r1c9],[r2c1,r2c2,r2c3,r2c4,r2c5,r2c6,r2c7,r2c8,r2c9],[r3c1,r3c2,r3c3,r3c4,r3c5,r3c6,r3c7,r3c8,r3c9],[r4c1,r4c2,r4c3,r4c4,r4c5,r4c6,r4c7,r4c8,r4c9],[r5c1,r5c2,r5c3,r5c4,r5c5,r5c6,r5c7,r5c8,r5c9],[r6c1,r6c2,r6c3,r6c4,r6c5,r6c6,r6c7,r6c8,r6c9],[r7c1,r7c2,r7c3,r7c4,r7c5,r7c6,r7c7,r7c8,r7c9],[r8c1,r8c2,r8c3,r8c4,r8c5,r8c6,r8c7,r8c8,r8c9],[r9c1,r9c2,r9c3,r9c4,r9c5,r9c6,r9c7,r9c8,r9c9]]}" }
+            ]
+          }]
+        })
+      }
+    );
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error.message);
+    const text = data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0] ? data.candidates[0].content.parts[0].text : "";
+    const match = text.match(/\{[\s\S]*\}/);
+    if (!match) throw new Error("数独を認識できませんでした");
+    const parsed = JSON.parse(match[0]);
+    const newGrid = parsed.grid.map(function(row) { return row.map(function(v) { return (v >= 1 && v <= 9) ? v : EMPTY; }); });
+    if (newGrid.length !== 9 || newGrid.some(function(r) { return r.length !== 9; })) throw new Error("グリッドの形式が正しくありません");
+    pushHistory();
+    setGrid(newGrid); setNotes(createEmptyNotes());
+    setFixed(Array.from({ length: 9 }, function() { return Array(9).fill(false); }));
+    setMode("edit"); setSelected(null); setComplete(false);
+  } catch (err) {
+    setScanError(err.message || "エラーが発生しました");
+  } finally {
+    setScanning(false);
+    if (cameraRef.current) cameraRef.current.value = "";
+    if (libraryRef.current) libraryRef.current.value = "";
+  }
+};
+
+const saveKey = (key) => {
+  try { localStorage.setItem(STORAGE_KEY, key); } catch(e) {}
+  setApiKey(key); setShowKeyModal(false);
+};
+
+const filledCount = grid.flat().filter(v => v !== EMPTY).length;
+const noteSize = Math.max(7, Math.floor(cellSize / 3.6));
+const answerFontSize = Math.max(14, Math.floor(cellSize * 0.52));
+
+const cells = [];
+for (let r = 0; r < 9; r++) {
+  for (let c = 0; c < 9; c++) {
+    const val = grid[r][c];
+    const isSelected_ = selected && selected[0] === r && selected[1] === c;
+    const isConflict = conflicts[r][c];
+    const isFixed_ = fixed[r][c];
+    const cellNotes = notes[r][c];
+    const borderRight = (c === 2 || c === 5) ? "2px solid #1a1a1a" : "1px solid #ccc";
+    const borderBottom = (r === 2 || r === 5) ? "2px solid #1a1a1a" : "1px solid #ccc";
+    const bg = isSelected_ ? "#f0ede6" : "#fff";
+    let inner = null;
+    if (val !== EMPTY) {
+      if (isFixed_ && mode === "play") {
+        inner = e("div", { style: {
+          width: Math.round(cellSize * 0.72), height: Math.round(cellSize * 0.72),
+          borderRadius: "50%", border: "1.5px solid " + (isConflict ? "#c0392b" : "#1a1a1a"),
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: Math.max(12, Math.floor(cellSize * 0.42)), fontWeight: 600,
+          color: isConflict ? "#c0392b" : "#1a1a1a", flexShrink: 0,
+        }}, val);
+      } else {
+        inner = e("span", { style: { fontSize: answerFontSize, fontWeight: 400, color: isConflict ? "#c0392b" : "#1a1a1a" }}, val);
+      }
+      inner = e("div", { style: { position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}, inner);
+    } else if (cellNotes.size > 0) {
+      const noteItems = [1,2,3,4,5,6,7,8,9].map(n =>
+        e("div", { key: n, style: { display: "flex", alignItems: "center", justifyContent: "center", fontSize: noteSize, color: cellNotes.has(n) ? "#c0392b" : "transparent", lineHeight: 1 }}, n)
+      );
+      inner = e("div", { style: { position: "absolute", inset: 2, display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gridTemplateRows: "repeat(3, 1fr)" }}, noteItems);
+    }
+    cells.push(e("div", {
+      key: r + "-" + c, onClick: () => setSelected([r, c]),
+      style: { width: cellSize, height: cellSize, position: "relative", cursor: "pointer", background: bg, borderRight, borderBottom }
+    }, inner));
+  }
+}
+
+const numBtns = [1,2,3,4,5,6,7,8,9].map(n =>
+  e("button", { key: n, onClick: () => handleInput(n), style: {
+    width: Math.max(30, cellSize - 6), height: Math.max(34, cellSize - 2),
+    border: "1px solid #d0d0cc", borderRadius: 4, background: "#fff",
+    fontSize: inputMode === "note" ? Math.max(11, cellSize * 0.27) : Math.max(14, cellSize * 0.42),
+    cursor: "pointer", color: inputMode === "note" ? "#c0392b" : "#1a1a1a",
+    fontFamily: "Georgia, serif", fontWeight: inputMode === "answer" ? 700 : 400,
+  }}, n)
+);
+numBtns.push(e("button", { key: "del", onClick: () => handleInput(0), style: {
+  width: Math.max(30, cellSize - 6), height: Math.max(34, cellSize - 2),
+  border: "1px solid #d0d0cc", borderRadius: 4, background: "#fff",
+  fontSize: 13, cursor: "pointer", color: "#bbb", fontFamily: "Georgia, serif",
+}}, "✕"));
+
+const btnBase = (disabled) => ({
+  padding: "7px 14px", border: "1px solid #d0d0cc", borderRadius: 4,
+  background: "#fff", color: disabled ? "#ccc" : "#555", fontSize: 12,
+  cursor: disabled ? "default" : "pointer", fontFamily: "Georgia, serif", letterSpacing: "0.04em",
+});
+const btnPrimary = {
+  padding: "7px 14px", border: "1px solid #1a1a1a", borderRadius: 4,
+  background: "#1a1a1a", color: "#fff", fontSize: 12,
+  cursor: "pointer", fontFamily: "Georgia, serif", letterSpacing: "0.04em",
+};
+const btnScan = {
+  padding: "7px 12px", border: "1px solid #2563a8", borderRadius: 4,
+  background: "#fff", color: "#2563a8", fontSize: 12,
+  cursor: "pointer", fontFamily: "Georgia, serif",
+};
+
+return e(React.Fragment, null,
+  showKeyModal && e(ApiKeyModal, { onSave: saveKey }),
+  e("input", { ref: cameraRef, type: "file", accept: "image/*", capture: "environment", style: { display: "none" }, onChange: ev => handleScan(ev.target.files[0]) }),
+  e("input", { ref: libraryRef, type: "file", accept: "image/*", style: { display: "none" }, onChange: ev => handleScan(ev.target.files[0]) }),
+  e("div", { style: {
+    minHeight: "100vh", background: "#fafaf8", display: "flex", flexDirection: "column",
+    alignItems: "center", justifyContent: "center",
+    fontFamily: "Georgia, serif", padding: "16px", overflowX: "hidden",
+  }},
+    e("div", { style: { marginBottom: 12, textAlign: "center" }},
+      e("div", { style: { fontSize: 10, letterSpacing: "0.22em", color: "#bbb", textTransform: "uppercase", marginBottom: 4 }},
+        mode === "edit" ? "編集モード" : "プレイモード"
+      ),
+      e("h1", { style: { margin: 0, fontSize: 24, fontWeight: 400, color: "#1a1a1a", letterSpacing: "0.05em" }}, "数独/ナンプレ"),
+      e("div", { style: { marginTop: 6, fontSize: 11, color: "#aaa", letterSpacing: "0.05em" }}, "問題は読み込みか自分で入力してね！")
+    ),
+    e("div", { style: {
+      display: "grid", gridTemplateColumns: "repeat(9, " + cellSize + "px)",
+      border: "2px solid #1a1a1a", borderRadius: 3, overflow: "hidden",
+      background: "#fff", userSelect: "none", flexShrink: 0,
+    }}, cells),
+    e("div", { style: { marginTop: 10, fontSize: 11, color: "#aaa", height: 16 }},
+      complete
+        ? e("span", { style: { color: "#27ae60", fontWeight: 600 }}, "✓ 完成！おめでとうございます")
+        : e("span", null, filledCount + " / 81")
+    ),
+    e("div", { style: { display: "flex", marginTop: 10, border: "1px solid #d0d0cc", borderRadius: 4, overflow: "hidden" }},
+      e("button", { onClick: () => setInputMode("answer"), style: {
+        padding: "6px 16px", border: "none", borderRight: "1px solid #d0d0cc",
+        background: inputMode === "answer" ? "#1a1a1a" : "#fff",
+        color: inputMode === "answer" ? "#fff" : "#555",
+        fontSize: 12, cursor: "pointer", fontFamily: "Georgia, serif",
+      }}, "確定（黒）"),
+      e("button", { onClick: () => setInputMode("note"), style: {
+        padding: "6px 16px", border: "none",
+        background: inputMode === "note" ? "#1a1a1a" : "#fff",
+        color: inputMode === "note" ? "#fff" : "#c0392b",
+        fontSize: 12, cursor: "pointer", fontFamily: "Georgia, serif",
+      }}, "候補（赤）")
+    ),
+    e("div", { style: { display: "flex", gap: 5, marginTop: 10, flexWrap: "wrap", justifyContent: "center" }},
+      numBtns
+    ),
+    e("div", { style: { display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap", justifyContent: "center" }},
+      e("button", { onClick: undo, disabled: !history.length, style: btnBase(!history.length) }, "元に戻す"),
+      mode === "edit"
+        ? e("button", { onClick: switchToPlay, style: btnPrimary }, "プレイ開始")
+        : e("button", { onClick: switchToEdit, style: btnBase(false) }, "編集に戻る"),
+      e("button", { onClick: clearAll, style: btnBase(false) }, "クリア")
+    ),
+    e("div", { style: { marginTop: 10, display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "center", alignItems: "center" }},
+      scanning
+        ? e("span", { style: { fontSize: 12, color: "#aaa" }}, "読み取り中...")
+        : e(React.Fragment, null,
+            e("button", {
+              onClick: () => { if (!apiKey) { setShowKeyModal(true); return; } libraryRef.current && (libraryRef.current.value = "") && libraryRef.current.click() || libraryRef.current.click(); },
+              style: btnScan
+            }, "📂 問題読み込み"),
+            e("button", { onClick: () => setShowKeyModal(true), style: { padding: "7px 10px", border: "1px solid #d0d0cc", borderRadius: 4, background: "#fff", color: "#bbb", fontSize: 11, cursor: "pointer", fontFamily: "Georgia, serif" }}, "🔑")
+          )
+    ),
+    scanError && e("div", { style: { marginTop: 6, fontSize: 11, color: "#c0392b", maxWidth: cellSize * 9, textAlign: "center" }}, scanError),
+    e("div", { style: { marginTop: 10 }},
+      e("button", {
+        onClick: () => setCheckConflicts(v => !v),
+        style: {
+          padding: "6px 14px", borderRadius: 4, fontSize: 11,
+          border: "1px solid " + (checkConflicts ? "#c0392b" : "#d0d0cc"),
+          background: checkConflicts ? "#fff0f0" : "#fff",
+          color: checkConflicts ? "#c0392b" : "#aaa",
+          cursor: "pointer", fontFamily: "Georgia, serif",
+        }
+      }, checkConflicts ? "重複チェック ON" : "重複チェック OFF")
+    )
+  )
+);
+```
+
+}
+
+const root = ReactDOM.createRoot(document.getElementById(“root”));
+root.render(e(SudokuApp, null));
+</script>
+
+</body>
+</html>
