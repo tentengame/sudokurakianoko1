@@ -72,6 +72,7 @@
     const [history, setHistory] = useState([]);
     const [complete, setComplete] = useState(false);
     const [cellSize, setCellSize] = useState(40);
+    const [checkConflicts, setCheckConflicts] = useState(false);
 
     useEffect(() => {
       const update = () => {
@@ -83,7 +84,7 @@
       return () => window.removeEventListener("resize", update);
     }, []);
 
-    const conflicts = getConflicts(grid);
+    const conflicts = checkConflicts ? getConflicts(grid) : Array.from({ length: 9 }, () => Array(9).fill(false));
 
     useEffect(() => {
       if (mode === "play") setComplete(isBoardComplete(grid, conflicts));
@@ -272,7 +273,9 @@
         e("div", { style: { fontSize: 10, letterSpacing: "0.22em", color: "#bbb", textTransform: "uppercase", marginBottom: 4 } },
           mode === "edit" ? "編集モード" : "プレイモード"
         ),
-        e("h1", { style: { margin: 0, fontSize: 24, fontWeight: 400, color: "#1a1a1a", letterSpacing: "0.05em" } }, "数独")
+        e("h1", { style: { margin: 0, fontSize: 24, fontWeight: 400, color: "#1a1a1a", letterSpacing: "0.05em" } }, "数独"),
+        e("div", { style: { marginTop: 6, fontSize: 11, color: "#aaa", letterSpacing: "0.05em" } }, "問題は自分で入力してね！")
+
       ),
       // Board
       e("div", {
@@ -320,6 +323,19 @@
           ? e("button", { onClick: switchToPlay, style: btnPrimary }, "プレイ開始")
           : e("button", { onClick: switchToEdit, style: btnBase(false) }, "編集に戻る"),
         e("button", { onClick: clearAll, style: btnBase(false) }, "クリア")
+      ),
+      // Conflict check toggle
+      e("div", { style: { marginTop: 12 } },
+        e("button", {
+          onClick: () => setCheckConflicts(v => !v),
+          style: {
+            padding: "6px 14px", borderRadius: 4, fontSize: 11,
+            border: `1px solid ${checkConflicts ? "#c0392b" : "#d0d0cc"}`,
+            background: checkConflicts ? "#fff0f0" : "#fff",
+            color: checkConflicts ? "#c0392b" : "#aaa",
+            cursor: "pointer", fontFamily: "Georgia, serif",
+          }
+        }, checkConflicts ? "重複チェック ON" : "重複チェック OFF")
       )
     );
   }
