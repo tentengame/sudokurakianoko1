@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>数独</title>
+<style>
+:root{--bg:#f5f0e8;--sf:#fff;--thin:#c8bfaf;--thk:#2c2416;--tx:#1a1208;--mu:#8a7d6b;
+  --ca:#c0392b;--ebg:#fdecea;--er:#e74c3c;--bn:#2c2416;--bt:#f5f0e8;--sl:#d4c9a8;--hi:#ede6d4;}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+body{font-family:sans-serif;background:var(--bg);color:var(--tx);
+  min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:12px 8px 60px;}
+
+#key-panel{width:100%;max-width:400px;background:var(--sf);border:2px solid var(--thk);
+  border-radius:10px;padding:14px;margin-bottom:12px;box-shadow:3px 3px 0 var(--thk);}
+#key-panel h2{font-size:.9rem;font-weight:700;margin-bottom:4px;}
+#key-panel p{font-size:.7rem;color:var(--mu);margin-bottom:8px;line-height:1.5;}
+#key-panel a{color:#1a5cb8;}
+.krow{display:flex;gap:6px;margin-bottom:5px;}
+#key-in{flex:1;font-family:monospace;font-size:.74rem;
+  border:1.5px solid var(--thin);border-radius:5px;padding:6px 8px;outline:none;}
+#key-save{padding:6px 14px;background:var(--bn);color:var(--bt);border:none;
+  border-radius:5px;font-size:.74rem;cursor:pointer;}
+#key-msg{font-size:.68rem;min-height:14px;color:#27ae60;}
+#key-msg.er{color:var(--er);}
+#key-reopen{font-size:.68rem;color:var(--mu);background:none;border:none;
+  text-decoration:underline;cursor:pointer;margin-bottom:8px;display:none;}
+
+h1{font-size:1.7rem;font-weight:700;letter-spacing:.06em;margin-bottom:1px;}
+.sub{font-size:.65rem;color:var(--mu);letter-spacing:.12em;text-transform:uppercase;margin-bottom:10px;}
+
+#photo-area{width:100%;max-width:390px;margin-bottom:8px;display:none;}
+#photo-topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;}
+#photo-topbar span{font-size:.68rem;color:var(--mu);}
+#photo-hidebtn{padding:2px 9px;border:1.5px solid var(--thin);border-radius:4px;
+  font-size:.68rem;cursor:pointer;background:var(--sf);color:var(--mu);}
+#photo-img{width:100%;max-height:220px;object-fit:contain;border-radius:6px;
+  border:1.5px solid var(--thin);display:block;}
+#photo-showbtn{font-size:.68rem;color:var(--mu);background:none;border:1.5px solid var(--thin);
+  border-radius:4px;padding:2px 9px;margin-bottom:8px;cursor:pointer;display:none;}
+
+#grid{display:grid;border:2.5px solid var(--thk);background:var(--sf);
+  box-shadow:4px 4px 0 var(--thk);margin-bottom:8px;user-select:none;}
+.cell{border-right:1px solid var(--thin);border-bottom:1px solid var(--thin);
+  display:flex;align-items:center;justify-content:center;cursor:pointer;background:var(--sf);}
+.cell.br{border-right:2.5px solid var(--thk);}
+.cell.bb{border-bottom:2.5px solid var(--thk);}
+.cell.sel{background:var(--sl)!important;}
+.cell.hi{background:var(--hi);}
+.cell.err{background:var(--ebg);}
+.ng{border-radius:50%;border:2px solid var(--thk);display:flex;align-items:center;
+  justify-content:center;font-family:monospace;font-weight:700;pointer-events:none;}
+.nc{font-family:monospace;font-weight:500;pointer-events:none;}
+.cands{display:grid;grid-template-columns:repeat(3,1fr);pointer-events:none;}
+.cands span{font-family:monospace;color:var(--ca);font-weight:600;
+  display:flex;align-items:center;justify-content:center;}
+
+#status{font-size:.74rem;color:var(--mu);margin-bottom:8px;min-height:16px;}
+#status.ok{color:#27ae60;font-weight:600;}
+#status.err{color:var(--er);font-weight:600;}
+
+.modes{display:flex;border:2px solid var(--thk);border-radius:6px;overflow:hidden;margin-bottom:9px;}
+.mdbtn{padding:7px 13px;font-family:sans-serif;font-size:.75rem;font-weight:500;
+  cursor:pointer;border:none;background:var(--sf);color:var(--mu);}
+.mdbtn.on{background:var(--bn);color:var(--bt);}
+.mdbtn.oncand{background:var(--ca);color:#fff;}
+
+#numpad{display:grid;grid-template-columns:repeat(9,1fr);gap:4px;margin-bottom:9px;}
+.nk{height:36px;border:2px solid var(--thk);border-radius:4px;background:var(--sf);
+  font-family:monospace;font-size:.95rem;font-weight:500;cursor:pointer;}
+.nk:active{background:var(--sl);}
+
+.acts{display:flex;gap:5px;flex-wrap:wrap;justify-content:center;margin-bottom:6px;}
+.btn{padding:7px 12px;border:2px solid var(--thk);border-radius:5px;font-family:sans-serif;
+  font-size:.75rem;font-weight:500;cursor:pointer;background:var(--sf);color:var(--tx);}
+.btn:active{background:var(--sl);}
+.btn.pri{background:var(--bn);color:var(--bt);border-color:var(--bn);}
+.btn.red{border-color:var(--er);color:var(--er);}
+
+#toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);
+  background:var(--bn);color:var(--bt);padding:9px 18px;border-radius:20px;
+  font-size:.75rem;opacity:0;transition:opacity .25s;pointer-events:none;
+  white-space:pre-wrap;text-align:center;z-index:99;max-width:88vw;line-height:1.5;}
+#toast.on{opacity:1;}#toast.bad{background:var(--er);}
+#loader{display:none;position:fixed;inset:0;background:rgba(245,240,232,.85);
+  flex-direction:column;align-items:center;justify-content:center;z-index:50;gap:12px;}
+#loader.on{display:flex;}
+.spin{width:34px;height:34px;border:3px solid var(--thin);border-top-color:var(--bn);
+  border-radius:50%;animation:sp .7s linear infinite;}
+@keyframes sp{to{transform:rotate(360deg);}}
+input[type=file]{display:none;}
+</style>
+</head>
+<body>
+
+<div id="key-panel">
+  <h2>🔑 APIキー設定</h2>
+  <p>初回のみ。<a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a> で取得。</p>
+  <div class="krow">
+    <input id="key-in" type="password" placeholder="sk-ant-...">
+    <button id="key-save">保存</button>
+  </div>
+  <div id="key-msg"></div>
+</div>
+<button id="key-reopen">🔑 APIキー再設定</button>
+
+<h1>数独</h1>
+<p class="sub">Sudoku Editor</p>
+
+<div id="photo-area">
+  <div id="photo-topbar">
+    <span>📷 参照写真</span>
+    <button id="photo-hidebtn">非表示</button>
+  </div>
+  <img id="photo-img" src="" alt="">
+</div>
+<button id="photo-showbtn">📷 参照写真を再表示</button>
+
+<div id="grid"></div>
+<div id="status">0 / 81</div>
+
+<div class="modes">
+  <button class="mdbtn on" data-m="given">初期値（○）</button>
+  <button class="mdbtn" data-m="confirmed">確定（黒）</button>
+  <button class="mdbtn" data-m="candidate">候補（赤）</button>
+</div>
+
+<div id="numpad"></div>
+
+<div class="acts">
+  <button class="btn" id="photo-btn">📷 写真を読み込む</button>
+  <button class="btn" id="undo-btn">↩ 戻す</button>
+</div>
+<div class="acts">
+  <button class="btn" id="chk-btn">✓ 重複チェック ON</button>
+  <button class="btn pri" id="play-btn">▶ プレイ開始</button>
+  <button class="btn red" id="clear-btn">クリア</button>
+</div>
+
+<input type="file" id="file-in" accept="image/*">
+<div id="loader"><div class="spin"></div><p style="font-size:.8rem;color:#8a7d6b">解析中...</p></div>
+<div id="toast"></div>
+
+<script>
+// ===== 状態 =====
+var apiKey = '';
+var cells = [];
+var sel = null;
+var mode = 'given';
+var hist = [];
+var play = false;
+var checkOn = true;
+var photoShowing = false;
+
+function mkCell() { return { g: null, c: null, cands: [] }; }
+function mkCells() {
+  cells = [];
+  for (var i = 0; i < 81; i++) cells.push(mkCell());
+}
+
+// ===== セルサイズ =====
+function cs() { return photoShowing ? 33 : 42; }
+
+// ===== グリッド描画 =====
+function renderGrid() {
+  var g = document.getElementById('grid');
+  var size = cs();
+  g.style.gridTemplateColumns = 'repeat(9,' + size + 'px)';
+  g.innerHTML = '';
+  for (var i = 0; i < 81; i++) {
+    var d = document.createElement('div');
+    d.className = 'cell' +
+      (i % 9 === 2 || i % 9 === 5 ? ' br' : '') +
+      (Math.floor(i / 9) === 2 || Math.floor(i / 9) === 5 ? ' bb' : '');
+    d.style.width = size + 'px';
+    d.style.height = size + 'px';
+    (function(idx) { d.onclick = function() { pickCell(idx); }; })(i);
+    g.appendChild(d);
+  }
+  paintAll();
+}
+
+function paintAll() {
+  for (var i = 0; i < 81; i++) paintCell(i);
+  updateStatus();
+}
+
+function paintCell(i) {
+  var el = document.getElementById('grid').children[i];
+  if (!el) return;
+  var ce = cells[i];
+  var size = cs();
+  var r = Math.floor(i / 9), c = i % 9;
+  var sr = sel !== null ? Math.floor(sel / 9) : -1;
+  var sc = sel !== null ? sel % 9 : -1;
+  var isSel = (i === sel);
+  var isHi = !isSel && sel !== null && (r === sr || c === sc ||
+    (Math.floor(r/3) === Math.floor(sr/3) && Math.floor(c/3) === Math.floor(sc/3)));
+  var isErr = checkOn && hasError(i);
+
+  el.className = 'cell' +
+    (c === 2 || c === 5 ? ' br' : '') +
+    (r === 2 || r === 5 ? ' bb' : '') +
+    (isSel ? ' sel' : isErr ? ' err' : isHi ? ' hi' : '');
+
+  el.innerHTML = '';
+  var fz = size < 38 ? '.82rem' : '1.05rem';
+  var circ = size - 12;
+
+  if (ce.g) {
+    var d = document.createElement('div');
+    d.className = 'ng';
+    d.style.width = circ + 'px';
+    d.style.height = circ + 'px';
+    d.style.fontSize = fz;
+    d.textContent = ce.g;
+    el.appendChild(d);
+  } else if (ce.c) {
+    var d = document.createElement('div');
+    d.className = 'nc';
+    d.style.fontSize = fz;
+    d.textContent = ce.c;
+    el.appendChild(d);
+  } else if (ce.cands.length > 0) {
+    var cfz = size < 38 ? '.35rem' : '.46rem';
+    var w = document.createElement('div');
+    w.className = 'cands';
+    w.style.width = (size - 3) + 'px';
+    w.style.height = (size - 3) + 'px';
+    for (var n = 1; n <= 9; n++) {
+      var s = document.createElement('span');
+      s.style.fontSize = cfz;
+      s.textContent = ce.cands.indexOf(n) >= 0 ? n : '';
+      w.appendChild(s);
+    }
+    el.appendChild(w);
+  }
+}
+
+function hasError(i) {
+  var v = cells[i].g || cells[i].c;
+  if (!v) return false;
+  var r = Math.floor(i / 9), c = i % 9;
+  for (var j = 0; j < 81; j++) {
+    if (j === i) continue;
+    var jv = cells[j].g || cells[j].c;
+    if (!jv || jv !== v) continue;
+    var jr = Math.floor(j / 9), jc = j % 9;
+    if (jr === r || jc === c ||
+      (Math.floor(jr/3) === Math.floor(r/3) && Math.floor(jc/3) === Math.floor(c/3)))
+      return true;
+  }
+  return false;
+}
+
+function updateStatus() {
+  var f = 0, e = 0;
+  for (var i = 0; i < 81; i++) {
+    if (cells[i].g || cells[i].c) f++;
+    if (checkOn && hasError(i)) e++;
+  }
+  var el = document.getElementById('status');
+  if (e) { el.textContent = f + '/81 ⚠ 重複' + e + 'マス'; el.className = 'err'; }
+  else if (f === 81) { el.textContent = '✓ 完成！'; el.className = 'ok'; }
+  else { el.textContent = f + ' / 81'; el.className = ''; }
+}
+
+// ===== 操作 =====
+function pickCell(i) { sel = i; paintAll(); }
+
+function enter(n) {
+  if (sel === null || (play && cells[sel].g)) return;
+  pushHist();
+  var ce = cells[sel];
+  if (mode === 'given') {
+    ce.g = (ce.g === n) ? null : n; ce.c = null; ce.cands = [];
+  } else if (mode === 'confirmed') {
+    ce.c = (ce.c === n) ? null : n; ce.g = null; ce.cands = [];
+  } else {
+    ce.g = null; ce.c = null;
+    var idx = ce.cands.indexOf(n);
+    if (idx >= 0) ce.cands.splice(idx, 1);
+    else { ce.cands.push(n); ce.cands.sort(function(a,b){return a-b;}); }
+  }
+  paintCell(sel); updateStatus();
+}
+
+function delCell() {
+  if (sel === null || (play && cells[sel].g)) return;
+  pushHist();
+  cells[sel] = mkCell();
+  paintCell(sel); updateStatus();
+}
+
+function pushHist() {
+  hist.push(JSON.stringify(cells.map(function(x){return {g:x.g,c:x.c,ca:x.cands.slice()};})));
+  if (hist.length > 120) hist.shift();
+}
+
+function undoLast() {
+  if (!hist.length) return;
+  cells = JSON.parse(hist.pop()).map(function(x){return {g:x.g,c:x.c,cands:x.ca};});
+  paintAll();
+}
+
+// ===== トースト =====
+var toastTimer;
+function showToast(msg, bad) {
+  var el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'on' + (bad ? ' bad' : '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function(){ el.className=''; }, bad ? 5500 : 3000);
+}
+
+// ===== 写真+OCR =====
+function handlePhoto(file) {
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(ev) {
+    var dataUrl = ev.target.result;
+    // 写真表示
+    document.getElementById('photo-img').src = dataUrl;
+    document.getElementById('photo-area').style.display = 'block';
+    document.getElementById('photo-showbtn').style.display = 'none';
+    photoShowing = true;
+    renderGrid();
+
+    // APIキーなければ表示だけ
+    if (!apiKey) {
+      showToast('写真を表示しました。\n見ながら手入力してください。');
+      return;
+    }
+
+    // OCR
+    var b64 = dataUrl.split(',')[1];
+    var mime = file.type || 'image/jpeg';
+    document.getElementById('loader').classList.add('on');
+
+    fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'anthropic-version': '2023-06-01',
+        'x-api-key': apiKey,
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 600,
+        messages: [{ role: 'user', content: [
+          { type: 'image', source: { type: 'base64', media_type: mime, data: b64 } },
+          { type: 'text', text: '数独の9x9グリッドをJSONのみで返してください（説明不要）:\n{"grid":[[行0の9数字],...,[行8の9数字]]}\n空欄は0、数字は1〜9。' }
+        ]}]
+      })
+    })
+    .then(function(res) {
+      document.getElementById('loader').classList.remove('on');
+      if (!res.ok) {
+        showToast(res.status === 401 ? 'APIキーが無効です' :
+                  res.status === 429 ? 'しばらく待ってから再試行してください' :
+                  'OCRエラー(' + res.status + ')\n写真を見ながら手入力してください', true);
+        return null;
+      }
+      return res.json();
+    })
+    .then(function(data) {
+      if (!data) return;
+      if (data.error) { showToast(data.error.message || 'APIエラー', true); return; }
+      var text = (data.content || []).map(function(b){ return b.text || ''; }).join('').trim();
+      var m = text.replace(/```\w*/g, '').match(/\{[\s\S]*?\}/);
+      if (!m) { showToast('読み取り失敗\n写真を見ながら手入力してください', true); return; }
+      var parsed;
+      try { parsed = JSON.parse(m[0]); } catch(e) { showToast('解析エラー', true); return; }
+      var grid = parsed.grid;
+      if (!Array.isArray(grid) || grid.length !== 9) { showToast('認識失敗\n手入力してください', true); return; }
+      pushHist(); mkCells(); sel = null; play = false;
+      var cnt = 0;
+      for (var r = 0; r < 9; r++) for (var c = 0; c < 9; c++) {
+        var v = parseInt(grid[r][c]);
+        if (v >= 1 && v <= 9) { cells[r*9+c].g = v; cnt++; }
+      }
+      paintAll();
+      showToast('✓ ' + cnt + '個配置しました\n間違いはタップして修正できます');
+    })
+    .catch(function() {
+      document.getElementById('loader').classList.remove('on');
+      showToast('通信エラー\n写真を見ながら手入力してください', true);
+    });
+  };
+  reader.readAsDataURL(file);
+}
+
+// ===== イベント設定 =====
+window.onload = function() {
+  // APIキー読み込み
+  try { apiKey = localStorage.getItem('sdku_key') || ''; } catch(e) {}
+  if (apiKey) {
+    document.getElementById('key-panel').style.display = 'none';
+    document.getElementById('key-reopen').style.display = 'inline';
+  }
+
+  // グリッド初期化
+  mkCells();
+  renderGrid();
+
+  // 数字パッド
+  var np = document.getElementById('numpad');
+  for (var n = 1; n <= 9; n++) {
+    (function(num) {
+      var b = document.createElement('button');
+      b.className = 'nk';
+      b.textContent = num;
+      b.onclick = function() { enter(num); };
+      np.appendChild(b);
+    })(n);
+  }
+
+  // APIキー保存
+  document.getElementById('key-save').onclick = function() {
+    var v = document.getElementById('key-in').value.trim();
+    var msg = document.getElementById('key-msg');
+    if (v.indexOf('sk-ant-') !== 0) {
+      msg.className = 'er'; msg.textContent = 'sk-ant- で始まるキーを入力してください'; return;
+    }
+    apiKey = v;
+    try { localStorage.setItem('sdku_key', v); } catch(e) {}
+    msg.className = ''; msg.textContent = '✓ 保存しました';
+    setTimeout(function() {
+      document.getElementById('key-panel').style.display = 'none';
+      document.getElementById('key-reopen').style.display = 'inline';
+    }, 600);
+  };
+
+  document.getElementById('key-reopen').onclick = function() {
+    document.getElementById('key-panel').style.display = 'block';
+    document.getElementById('key-reopen').style.display = 'none';
+  };
+
+  // モード切替
+  document.querySelectorAll('.mdbtn').forEach(function(b) {
+    b.onclick = function() {
+      mode = b.dataset.m;
+      document.querySelectorAll('.mdbtn').forEach(function(x) {
+        x.className = 'mdbtn' + (x.dataset.m === mode ? (mode === 'candidate' ? ' oncand' : ' on') : '');
+      });
+    };
+  });
+
+  // 写真ボタン
+  document.getElementById('photo-btn').onclick = function() {
+    document.getElementById('file-in').click();
+  };
+  document.getElementById('file-in').onchange = function(e) {
+    var file = e.target.files[0];
+    e.target.value = '';
+    handlePhoto(file);
+  };
+
+  // 写真非表示/再表示
+  document.getElementById('photo-hidebtn').onclick = function() {
+    document.getElementById('photo-area').style.display = 'none';
+    document.getElementById('photo-showbtn').style.display = 'inline';
+    photoShowing = false;
+    renderGrid();
+  };
+  document.getElementById('photo-showbtn').onclick = function() {
+    document.getElementById('photo-area').style.display = 'block';
+    document.getElementById('photo-showbtn').style.display = 'none';
+    photoShowing = true;
+    renderGrid();
+  };
+
+  // その他ボタン
+  document.getElementById('undo-btn').onclick = undoLast;
+  document.getElementById('chk-btn').onclick = function() {
+    checkOn = !checkOn;
+    this.textContent = checkOn ? '✓ 重複チェック ON' : '　重複チェック OFF';
+    paintAll();
+  };
+  document.getElementById('play-btn').onclick = function() {
+    play = true;
+    showToast('▶ プレイ開始。初期値（○）は変更不可です。');
+    paintAll();
+  };
+  document.getElementById('clear-btn').onclick = function() {
+    if (!confirm('クリアしますか？')) return;
+    pushHist(); mkCells(); sel = null; play = false; paintAll();
+  };
+
+  // キーボード
+  document.addEventListener('keydown', function(e) {
+    if (e.key >= '1' && e.key <= '9') { enter(parseInt(e.key)); return; }
+    if (e.key === 'Backspace' || e.key === 'Delete') { delCell(); return; }
+    if (sel !== null) {
+      var r = Math.floor(sel/9), c = sel%9;
+      if (e.key === 'ArrowRight') pickCell(r*9 + Math.min(8, c+1));
+      if (e.key === 'ArrowLeft')  pickCell(r*9 + Math.max(0, c-1));
+      if (e.key === 'ArrowDown')  pickCell(Math.min(80, sel+9));
+      if (e.key === 'ArrowUp')    pickCell(Math.max(0, sel-9));
+    }
+  });
+};
+</script>
+</body>
+</html>
