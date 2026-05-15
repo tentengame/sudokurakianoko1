@@ -147,7 +147,7 @@ function us(){
   else{el.textContent=f+' / 81';el.className='';}
 }
 function en(n){
-  if(sel==null||(play&&cells[sel].g))return;
+  if(sel==null)return;
   ph();var ce=cells[sel];
   if(mode=='given'){ce.g=(ce.g==n)?null:n;ce.c=null;ce.cands=[];}
   else if(mode=='confirmed'){ce.c=(ce.c==n)?null:n;ce.g=null;ce.cands=[];}
