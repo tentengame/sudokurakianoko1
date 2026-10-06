@@ -1,0 +1,28 @@
+{
+ "name": "デイトレ売買ボード",
+ "short_name": "売買ボード",
+ "start_url": "./",
+ "scope": "./",
+ "display": "standalone",
+ "background_color": "#EDF0F3",
+ "theme_color": "#16202B",
+ "lang": "ja",
+ "icons": [
+  {
+   "src": "icon-192.png",
+   "sizes": "192x192",
+   "type": "image/png"
+  },
+  {
+   "src": "icon-512.png",
+   "sizes": "512x512",
+   "type": "image/png"
+  },
+  {
+   "src": "icon-512.png",
+   "sizes": "512x512",
+   "type": "image/png",
+   "purpose": "maskable"
+  }
+ ]
+}

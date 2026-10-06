@@ -1,0 +1,680 @@
+<!doctype html>
+<html lang="ja"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>デイトレ売買ボード</title>
+<meta name="theme-color" content="#EDF0F3" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0E1318" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="売買ボード">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+</head><body>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+/* Layout: one phone-width column. Sticky clock bar, next-action card, then a time-ordered tape of buy/sell events. */
+:root{
+  --bg:#EDF0F3; --surface:#FFFFFF; --ink:#16202B; --muted:#5D6A77; --line:#D3DAE1;
+  --buy:#C23A22; --sell:#1E5DBA; --up:#C23A22; --down:#1E5DBA;
+  --markBg:#FFF19A; --markInk:#3B3200; --warn:#A86200; --warnBg:#FFF0D9; --go:#17744A;
+  --chip:#E4E9EE; --doneBg:#E2EEE7;
+  --f-body:"BIZ UDPGothic","Hiragino Sans","Yu Gothic",system-ui,sans-serif;
+  --f-num:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0E1318; --surface:#171F27; --ink:#E5EBF1; --muted:#8E9BA8; --line:#2A3540;
+  --buy:#FF7360; --sell:#64A2FF; --up:#FF7360; --down:#64A2FF;
+  --markBg:#4A400C; --markInk:#FFE45A; --warn:#FFB54A; --warnBg:#3A2A0E; --go:#4FCB8E;
+  --chip:#232D37; --doneBg:#15271E; color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#0E1318; --surface:#171F27; --ink:#E5EBF1; --muted:#8E9BA8; --line:#2A3540;
+  --buy:#FF7360; --sell:#64A2FF; --up:#FF7360; --down:#64A2FF;
+  --markBg:#4A400C; --markInk:#FFE45A; --warn:#FFB54A; --warnBg:#3A2A0E; --go:#4FCB8E;
+  --chip:#232D37; --doneBg:#15271E; color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--f-body);-webkit-text-size-adjust:100%}
+.wrap{max-width:560px;margin:0 auto;padding-inline:16px;padding-block:0 96px}
+.num{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--sell);outline-offset:2px}
+
+/* top bar */
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-block:10px 8px;border-bottom:1px solid var(--line);display:grid;gap:8px}
+.bar-row{display:flex;align-items:center;gap:8px}
+.datebox{display:flex;align-items:center;gap:2px;min-width:0}
+.datebox button{border:0;background:none;width:34px;height:34px;border-radius:8px;font-size:18px;color:var(--muted)}
+.datebox button:active{background:var(--chip)}
+.datelbl{font-weight:700;font-size:16px;white-space:nowrap}
+.today-btn{border:1px solid var(--line)!important;width:auto!important;padding:0 10px;font-size:12px!important;height:28px!important;color:var(--ink)!important}
+.clock{margin-left:auto;text-align:right;line-height:1.1}
+.clock .num{font-size:22px;font-weight:600;letter-spacing:.02em}
+.phase{font-size:11px;letter-spacing:.08em;color:var(--muted)}
+.phase.open{color:var(--go)} .phase.close{color:var(--warn)}
+.tabs{display:grid;grid-template-columns:1fr 1fr;background:var(--chip);border-radius:10px;padding:3px}
+.tabs button{border:0;background:none;padding:7px 0;border-radius:8px;font-weight:700;font-size:14px;color:var(--muted)}
+.tabs button[aria-selected="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgb(0 0 0 / .12)}
+
+/* next card */
+.next{margin-top:14px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:grid;gap:4px}
+.next .eyebrow{font-size:11px;letter-spacing:.12em;color:var(--muted)}
+.next .main{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.next .t{font-family:var(--f-num);font-size:30px;font-weight:600}
+.next .what{font-size:19px;font-weight:700;min-width:0}
+.next .cd{font-family:var(--f-num);font-size:14px;color:var(--muted)}
+.next .cd.soon{color:var(--warn);font-weight:600}
+.next .what.is-buy .act{color:var(--buy)} .next .what.is-sell .act{color:var(--sell)}
+.next .main .cd{margin-left:auto}
+.next .what.jump{display:flex;align-items:baseline;gap:6px;width:100%;border:0;background:none;padding:6px 0;text-align:left;font:inherit;font-size:19px;font-weight:700;color:var(--ink);border-top:1px solid var(--line);flex-wrap:wrap}
+.next .what.jump:active{background:var(--chip)}
+.go-arrow{margin-left:auto;color:var(--muted);font-size:22px;line-height:1}
+.jump-link{border:0;background:none;padding:0;font:inherit;color:inherit;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px;cursor:pointer}
+.ev.flash{outline:3px solid var(--warn);outline-offset:2px}
+.overdue{margin-top:10px;background:var(--warnBg);color:var(--warn);border-radius:10px;padding:8px 12px;font-size:13px;font-weight:700}
+
+.summary{display:flex;gap:18px;flex-wrap:wrap;margin-top:12px;font-size:12px;color:var(--muted)}
+.summary b{display:block;font-family:var(--f-num);font-size:16px;color:var(--ink);font-weight:600}
+.summary .pos{color:var(--up)} .summary .neg{color:var(--down)}
+
+/* tape */
+.tape{list-style:none;margin:14px 0 0;padding:0;display:grid;gap:6px}
+.ev{background:var(--surface);border:1px solid var(--line);border-radius:12px;display:grid;grid-template-columns:54px 1fr 48px;align-items:center;gap:10px;padding:10px 8px 10px 12px;cursor:pointer}
+.ev.star{background:var(--markBg);border-color:transparent}
+.ev.star .name,.ev.star .code{color:var(--markInk)}
+.ev .t{font-family:var(--f-num);font-weight:600;font-size:16px}
+.ev .body{min-width:0}
+.ev .top{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.act{font-weight:700;font-size:13px;padding:1px 7px;border-radius:5px;color:#fff}
+.side-buy .act{background:var(--buy)} .side-sell .act{background:var(--sell)}
+.next .act{background:none;padding:0;font-size:inherit}
+.code{font-family:var(--f-num);font-weight:600;font-size:14px}
+.name{font-weight:700;font-size:15px;min-width:0;overflow-wrap:anywhere}
+.chip{font-size:11px;font-weight:700;padding:1px 6px;border-radius:999px;border:1px solid currentColor;line-height:1.4}
+.chip.go{color:var(--go)} .chip.wait{color:var(--warn)} .chip.skip{color:var(--muted)}
+.sub{font-size:12px;color:var(--muted);margin-top:2px;overflow-wrap:anywhere}
+.ev.star .sub{color:var(--markInk);opacity:.8}
+.chk{width:44px;height:44px;border-radius:50%;border:2px solid var(--line);background:none;font-size:16px;font-weight:700;color:#fff;justify-self:end}
+.ev.done,.ev.done.star{background:var(--doneBg);border-color:transparent}
+.ev.done .act{background:var(--go)}
+.ev.done .name,.ev.done .code{color:var(--muted)}
+.ev.done .t{color:var(--go)}
+.ev.done .chk{background:var(--go);border-color:var(--go)}
+.px{font-size:13px;font-weight:600;color:var(--go)}
+.chip.short{color:var(--sell)} .chip.hike{color:var(--ink)}
+.tf button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.ev.late{box-shadow:inset 4px 0 0 var(--warn)}
+.ev.muted{opacity:.45}
+.ev.skip{opacity:.4} .ev.skip .name{text-decoration:line-through}
+.detail{grid-column:1 / -1;display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;padding-top:6px;border-top:1px dashed var(--line);cursor:default}
+.detail label{font-size:11px;color:var(--muted);display:grid;gap:2px}
+.detail input{width:100%}
+.pnl{font-family:var(--f-num);font-weight:600;align-self:end;padding-bottom:6px}
+.pnl.pos{color:var(--up)} .pnl.neg{color:var(--down)}
+.nowline{display:flex;align-items:center;gap:8px;color:var(--warn);font-family:var(--f-num);font-size:12px;font-weight:600;margin:2px 0}
+.nowline::before,.nowline::after{content:"";height:2px;background:var(--warn);flex:1}
+.section-h{font-size:11px;letter-spacing:.12em;color:var(--muted);margin:18px 0 0}
+
+input,textarea{font:inherit;font-size:16px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:7px 9px;min-width:0}
+input::placeholder,textarea::placeholder{color:var(--muted);opacity:.7}
+
+/* editor */
+.ed{display:grid;gap:10px;margin-top:14px}
+.erow{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px;display:grid;gap:8px}
+.erow.star{background:var(--markBg);border-color:transparent}
+.g1{display:grid;grid-template-columns:76px 1fr 42px;gap:8px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.tf{display:flex;align-items:center;gap:4px;min-width:0}
+.tf span{font-size:12px;font-weight:700;width:18px;flex:none}
+.tf.b span{color:var(--buy)} .tf.s span{color:var(--sell)}
+.tf input{flex:1;width:100%;font-family:var(--f-num)}
+.tf button{flex:none;border:1px solid var(--line);background:var(--surface);border-radius:7px;font-size:12px;height:36px;padding:0 7px}
+.tf .sumi{flex:none;font-style:normal;font-weight:700;font-size:13px;color:#fff;background:var(--go);border-radius:7px;height:36px;min-width:44px;display:grid;place-items:center}
+.tf.done input{border-color:var(--go)}
+.seg.dir button[aria-pressed="true"]{color:var(--sell)}
+input.need{border:2px solid var(--warn);background:var(--warnBg)}
+input.need::placeholder{color:var(--warn);opacity:1}
+.code-in{font-family:var(--f-num);text-transform:uppercase}
+.starbtn{border:1px solid var(--line);background:var(--surface);border-radius:8px;font-size:18px;color:var(--muted)}
+.erow.star .starbtn{background:var(--markInk);color:var(--markBg);border-color:transparent}
+.g3{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.seg{display:flex;background:var(--chip);border-radius:8px;padding:2px}
+.seg button{border:0;background:none;font-size:12px;font-weight:700;padding:6px 9px;border-radius:6px;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgb(0 0 0 / .12)}
+.del{margin-left:auto;border:0;background:none;color:var(--muted);font-size:12px;padding:6px 4px}
+.del.arm{color:var(--buy);font-weight:700}
+.memo-in{width:100%}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:10px 14px;font-weight:700;font-size:14px}
+.btn.arm:not(.danger){background:var(--warn);color:#fff;border-color:var(--warn)}
+#exportBox{min-height:90px;font-size:12px;margin-top:8px}
+.btn.danger{color:var(--buy)}
+.btn.danger.arm{background:var(--buy);color:#fff;border-color:var(--buy)}
+.btn.primary{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.btnrow{display:flex;gap:8px;flex-wrap:wrap}
+details.paste{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+details.paste summary{font-weight:700;font-size:14px;cursor:pointer}
+details.paste p{font-size:12px;color:var(--muted);margin:6px 0}
+details.paste textarea{width:100%;min-height:120px;font-family:var(--f-num);font-size:14px;margin-bottom:8px}
+.empty{margin-top:24px;text-align:center;color:var(--muted);display:grid;gap:12px;justify-items:center}
+.foot{margin-top:22px;font-size:11px;color:var(--muted);display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.foot button{border:1px solid var(--line);background:none;border-radius:999px;padding:3px 10px;font-size:11px;color:var(--muted)}
+.foot button[aria-pressed="true"]{color:var(--go);border-color:var(--go)}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:999px;font-size:13px;z-index:9}
+@media (prefers-reduced-motion:no-preference){.chk{transition:background .15s,border-color .15s}}
+</style>
+
+<div class="wrap">
+  <header class="bar">
+    <div class="bar-row">
+      <div class="datebox">
+        <button id="prevDay" aria-label="前の日">‹</button>
+        <span class="datelbl num" id="dateLbl"></span>
+        <button id="nextDay" aria-label="次の日">›</button>
+        <button id="todayBtn" class="today-btn" hidden>今日</button>
+      </div>
+      <div class="clock"><div class="num" id="clock">--:--:--</div><div class="phase" id="phase"></div></div>
+    </div>
+    <div class="tabs" role="tablist">
+      <button role="tab" id="tabTrade" aria-selected="true">売買</button>
+      <button role="tab" id="tabEdit" aria-selected="false">銘柄を編集</button>
+    </div>
+  </header>
+
+  <main id="tradeView"></main>
+  <main id="editView" hidden></main>
+
+  <div class="foot">
+    <span id="saveState">読み込み中…</span>
+    <button id="wakeBtn" aria-pressed="false">画面を消さない</button>
+  </div>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(function(){
+"use strict";
+const OPEN=540, CLOSE=930;
+const S={date:jstToday(),rows:[],view:"trade",open:null,db:null,unsub:null};
+let lastJson="", saveT=null, chain=Promise.resolve(), deferRender=false;
+
+/* ---------- time ---------- */
+function jstNow(){return new Date(Date.now()+9*3600e3)}
+function jstToday(){return jstNow().toISOString().slice(0,10)}
+function nowSec(){const d=jstNow();return d.getUTCHours()*3600+d.getUTCMinutes()*60+d.getUTCSeconds()}
+function parseT(v){
+  if(!v)return null; v=String(v).trim().replace(/：/g,":");
+  if(/^(open|寄付?|寄り)$/i.test(v))return OPEN;
+  if(/^(大引け?|引け?|close)$/i.test(v))return CLOSE;
+  const m=v.match(/^(\d{1,2}):(\d{2})$/); if(!m)return null;
+  return +m[1]*60+ +m[2];
+}
+function normT(v){
+  v=String(v||"").trim().replace(/：/g,":"); if(!v)return "";
+  if(/^(open|寄付?|寄り)$/i.test(v))return "寄付";
+  if(/^(大引け?|引け?|close)$/i.test(v))return "15:30";
+  if(/^\d{3,4}$/.test(v))v=v.slice(0,-2)+":"+v.slice(-2);
+  const m=v.match(/^(\d{1,2})[:.](\d{2})$/); if(m)return (+m[1])+":"+m[2];
+  return v;
+}
+function fmtT(m,raw){if(m==null)return raw||"";if(m===OPEN&&/寄|open/i.test(raw||""))return "寄付";return Math.floor(m/60)+":"+String(m%60).padStart(2,"0")}
+function phase(sec,dateStr){
+  const wd=new Date(dateStr+"T00:00:00Z").getUTCDay();
+  if(wd===0||wd===6)return["休場日",""];
+  const m=sec/60;
+  if(m<OPEN)return["寄り前",""]; if(m<690)return["前場","open"]; if(m<750)return["昼休み",""];
+  if(m<925)return["後場","open"]; if(m<CLOSE)return["引け前","close"]; return["大引け後",""];
+}
+function addDays(d,n){const x=new Date(d+"T00:00:00Z");x.setUTCDate(x.getUTCDate()+n);return x.toISOString().slice(0,10)}
+function dateLabel(d){const x=new Date(d+"T00:00:00Z");return (x.getUTCMonth()+1)+"/"+x.getUTCDate()+"（"+"日月火水木金土"[x.getUTCDay()]+"）"}
+
+/* ---------- utils ---------- */
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const clone=o=>JSON.parse(JSON.stringify(o));
+const uid=()=>Math.random().toString(36).slice(2,9);
+const num=v=>{const n=parseFloat(String(v||"").replace(/,/g,""));return isFinite(n)?n:null};
+function toast(t){const el=$("toast");el.textContent=t;el.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>el.hidden=true,1800)}
+function newRow(p){return Object.assign({id:uid(),code:"",name:"",buy:"",sell:"",dir:"long",status:"Go",star:false,memo:"",qty:"",buyPx:"",sellPx:"",buyDone:false,sellDone:false},p||{})}
+
+/* ---------- 銘柄名辞書（主要銘柄）＋自分で入れた名前を記憶 ---------- */
+const DICT=Object.fromEntries(("1332 ニッスイ|1605 INPEX|1721 コムシスHD|1801 大成建設|1802 大林組|1803 清水建設|1812 鹿島|1878 大東建託|1911 住友林業|1925 大和ハウス|1928 積水ハウス|1963 日揮HD|2002 日清製粉G|2181 パーソルHD|2229 カルビー|2269 明治HD|2282 日本ハム|2413 エムスリー|2432 DeNA|2501 サッポロHD|2502 アサヒGHD|2503 キリンHD|2587 サントリーBF|2593 伊藤園|2768 双日|2801 キッコーマン|2802 味の素|2871 ニチレイ|2897 日清食品HD|2914 JT|3086 Jフロント|3088 マツキヨココカラ|3099 三越伊勢丹|3289 東急不動産HD|3382 セブン&アイ|3401 帝人|3402 東レ|3407 旭化成|3436 SUMCO|3659 ネクソン|3697 SHIFT|3778 さくらインターネット|3861 王子HD|3923 ラクス|4004 レゾナック|4005 住友化学|4021 日産化学|4042 東ソー|4043 トクヤマ|4061 デンカ|4062 イビデン|4063 信越化学|4151 協和キリン|4183 三井化学|4186 東京応化|4188 三菱ケミカルG|4208 UBE|4307 野村総研|4324 電通G|4385 メルカリ|4452 花王|4502 武田薬品|4503 アステラス|4506 住友ファーマ|4507 塩野義|4519 中外製薬|4523 エーザイ|4528 小野薬品|4543 テルモ|4568 第一三共|4578 大塚HD|4661 OLC|4684 オービック|4689 LINEヤフー|4704 トレンドマイクロ|4751 サイバーエージェント|4755 楽天G|4901 富士フイルム|4902 コニカミノルタ|4911 資生堂|5016 JX金属|5019 出光興産|5020 ENEOS|5101 横浜ゴム|5108 ブリヂストン|5201 AGC|5214 日本電気硝子|5233 太平洋セメント|5301 東海カーボン|5332 TOTO|5333 日本ガイシ|5401 日本製鉄|5406 神戸製鋼|5411 JFE|5631 日本製鋼所|5706 三井金属|5711 三菱マテリアル|5713 住友金属鉱山|5714 DOWA|5801 古河電工|5802 住友電気工業|5803 フジクラ|5830 いよぎん|5831 しずおかFG|5838 楽天銀行|6098 リクルート|6146 ディスコ|6178 日本郵政|6268 ナブテスコ|6273 SMC|6301 コマツ|6302 住友重機|6305 日立建機|6315 TOWA|6323 ローツェ|6326 クボタ|6361 荏原|6367 ダイキン|6383 ダイフク|6448 ブラザー|6471 日本精工|6472 NTN|6473 ジェイテクト|6479 ミネベアミツミ|6501 日立|6503 三菱電機|6504 富士電機|6506 安川電機|6525 KOKUSAI|6526 ソシオネクスト|6532 ベイカレント|6586 マキタ|6594 ニデック|6645 オムロン|6701 NEC|6702 富士通|6723 ルネサス|6724 セイコーエプソン|6752 パナソニック|6753 シャープ|6758 SONY|6762 TDK|6770 アルプスアルパイン|6807 日本航空電子|6834 精工技研|6841 横河電機|6855 日本電子材料|6862 ミナトHD|6857 アドバンテスト|6861 キーエンス|6869 シスメックス|6890 フェローテック|6902 デンソー|6920 レーザーテック|6952 カシオ|6954 ファナック|6963 ローム|6965 浜松ホトニクス|6971 京セラ|6976 太陽誘電|6981 村田製作所|6988 日東電工|6995 東海理化|7003 三井E&S|7004 カナデビア|7011 三菱重工|7012 川崎重工|7013 IHI|7014 名村造船|7167 めぶきFG|7181 かんぽ生命|7182 ゆうちょ|7201 日産|7202 いすゞ|7203 トヨタ|7205 日野自動車|7211 三菱自動車|7220 武蔵精密|7259 アイシン|7261 マツダ|7267 ホンダ|7269 スズキ|7270 SUBARU|7272 ヤマハ発動機|7453 良品計画|7731 ニコン|7733 オリンパス|7735 SCREEN|7741 HOYA|7751 キヤノン|7752 リコー|7832 バンダイナムコ|7911 TOPPAN|7912 大日本印刷|7936 アシックス|7951 ヤマハ|7974 任天堂|8001 伊藤忠|8002 丸紅|8015 豊田通商|8031 三井物産|8035 東京エレクトロン|8053 住友商事|8058 三菱商事|8113 ユニ・チャーム|8136 サンリオ|8233 高島屋|8252 丸井G|8267 イオン|8304 あおぞら銀|8306 MUFJ|8308 りそなHD|8309 三井住友トラスト|8316 三井住友FG|8331 千葉銀行|8354 ふくおかFG|8361 大垣共立銀行|8410 セブン銀行|8411 みずほFG|8473 SBI HD|8591 オリックス|8601 大和証券G|8604 野村|8628 松井証券|8630 SOMPO|8697 JPX|8725 MS&AD|8750 第一生命HD|8766 東京海上|8795 T&D HD|8801 三井不動産|8802 三菱地所|8830 住友不動産|8876 リログループ|9001 東武|9005 東急|9007 小田急|9008 京王|9009 京成|9020 JR東日本|9021 JR西日本|9022 JR東海|9064 ヤマトHD|9101 日本郵船|9104 商船三井|9107 川崎汽船|9201 JAL|9202 ANA|9432 NTT|9433 KDDI|9434 ソフトバンク|9468 KADOKAWA|9501 東京電力HD|9502 中部電力|9503 関西電力|9531 東京ガス|9532 大阪ガス|9602 東宝|9684 スクエニHD|9697 カプコン|9719 SCSK|9735 セコム|9766 コナミG|9843 ニトリHD|9983 ファーストリテイリング|9984 ソフトバンクG|285A キオクシア").split("|").map(s=>{const i=s.indexOf(" ");return[s.slice(0,i),s.slice(i+1)]}));
+let MY={};
+try{MY=JSON.parse(localStorage.getItem("daytrade-board:names")||"{}")}catch(e){}
+function lookup(code){code=String(code||"").toUpperCase();return MY[code]||DICT[code]||""}
+let namesT=null;
+function learn(code,name){
+  code=String(code||"").toUpperCase().trim(); name=String(name||"").trim();
+  if(!/^[0-9][0-9A-Z]{3}$/.test(code)||!name||MY[code]===name)return;
+  if(DICT[code]===name&&!MY[code])return;
+  MY[code]=name;
+  try{localStorage.setItem("daytrade-board:names",JSON.stringify(MY))}catch(e){}
+  clearTimeout(namesT); namesT=setTimeout(()=>{if(S.db)S.db.doc("meta/names").set({names:MY}).catch(()=>{})},1500);
+}
+const entrySide=r=>r.dir==="short"?"sell":"buy";
+const exitSide=r=>r.dir==="short"?"buy":"sell";
+const sideJa=s=>s==="buy"?"買い":"売り";
+const doneOf=(r,s)=>s==="buy"?r.buyDone:r.sellDone;
+function isToday(){return S.date===jstToday()}
+
+/* ---------- storage ---------- */
+function lsKey(d){return "daytrade-board:"+d}
+function lsGet(d){try{const v=localStorage.getItem(lsKey(d));return v?JSON.parse(v):null}catch(e){return null}}
+function lsSet(d,rows){try{localStorage.setItem(lsKey(d),JSON.stringify(rows))}catch(e){}}
+function setSaveState(t){$("saveState").textContent=t}
+
+/* 未送信の変更があるかを端末に記録（通信が切れても取りこぼさない） */
+function dirtyKey(d){return "daytrade-board:dirty:"+d}
+function setDirty(d,v){try{v?localStorage.setItem(dirtyKey(d),"1"):localStorage.removeItem(dirtyKey(d))}catch(e){}}
+function isDirty(d){try{return localStorage.getItem(dirtyKey(d))==="1"}catch(e){return false}}
+let retryT=null;
+function save(){lsSet(S.date,S.rows);setDirty(S.date,true);clearTimeout(saveT);saveT=setTimeout(flush,600);setSaveState(S.db?"保存中…":"この端末に保存済み")}
+function flush(){
+  saveT=null;
+  const d=S.date, j=JSON.stringify(S.rows); if(!S.db||j===lastJson){if(S.db&&!isDirty(d))setSaveState("保存済み（どの端末でも開けます）");return}
+  lastJson=j;
+  const ref=S.db.collection("days").doc(d), body={rows:clone(S.rows),updatedAt:new Date().toISOString()};
+  chain=chain.then(()=>ref.set(body)).then(()=>{
+      if(JSON.stringify(lsGet(d)||[])===j)setDirty(d,false);
+      setSaveState("保存済み（どの端末でも開けます）");
+    })
+    .catch(e=>{
+      lastJson="";
+      setSaveState("通信できないため、この端末にだけ保存中。つながったら自動で送ります");
+      clearTimeout(retryT); retryT=setTimeout(()=>{if(isDirty(S.date))flush()},20000);
+    });
+}
+window.addEventListener("online",()=>{if(isDirty(S.date)){lastJson="";flush()}});
+function subscribe(){
+  if(S.unsub){S.unsub();S.unsub=null}
+  if(!S.db)return;
+  const d=S.date, ref=S.db.collection("days").doc(d);
+  S.unsub=ref.onSnapshot(snap=>{
+    if(d!==S.date||snap.metadata.hasPendingWrites)return;
+    if(!snap.exists){
+      if(S.rows.length){lastJson="";flush()} else setSaveState("保存済み（どの端末でも開けます）");
+      return;
+    }
+    const rows=(snap.data().rows)||[], j=JSON.stringify(rows);
+    if(j===lastJson||saveT)return;
+    if(isDirty(d)){lastJson="";flush();return}
+    lastJson=j; S.rows=clone(rows); lsSet(d,S.rows);
+    setSaveState("保存済み（どの端末でも開けます）");
+    if(editingNow())deferRender=true; else renderAll();
+  },e=>setSaveState("同期が止まりました。再読み込みしてください（"+e.code+"）"));
+}
+function editingNow(){const a=document.activeElement;return a&&(a.tagName==="INPUT"||a.tagName==="TEXTAREA")}
+document.addEventListener("focusout",()=>setTimeout(()=>{if(deferRender&&!editingNow()){deferRender=false;renderAll()}},50));
+
+function loadDay(d){
+  if(saveT){clearTimeout(saveT);flush()}
+  S.date=d; S.open=null; lastJson="";
+  S.rows=lsGet(d)||[];
+  renderAll(); subscribe();
+}
+async function findPrevRows(){
+  for(let i=1;i<=10;i++){
+    const d=addDays(S.date,-i);
+    if(S.db){try{const s=await S.db.collection("days").doc(d).get();if(s.exists&&(s.data().rows||[]).length)return{d,rows:s.data().rows}}catch(e){}}
+    const l=lsGet(d); if(l&&l.length)return{d,rows:l};
+  }
+  return null;
+}
+async function copyPrev(){
+  const p=await findPrevRows();
+  if(!p){toast("直近10日に銘柄リストが見つかりません");return}
+  S.rows=p.rows.map(r=>newRow({code:r.code,name:r.name,buy:r.buy,sell:r.sell,dir:r.dir||"long",status:"",star:false,memo:r.memo,qty:r.qty,hike:!!r.hike}));
+  save(); renderAll(); toast(dateLabel(p.d)+"のリストをコピーしました");
+}
+
+/* ---------- paste parser ---------- */
+function parseText(txt){
+  const out=[];
+  txt.split(/\r?\n/).forEach(line=>{
+    line=line.replace(/：/g,":").replace(/(\d{1,2}:\d{2})/g," $1 ").replace(/(買い|売り|買わない|かわない)/g," $1 ").replace(/[\t　,]+/g," ").trim();
+    if(!line)return;
+    const toks=line.split(/\s+/); const r=newRow({status:""}); const times=[], name=[], memo=[], sides=[]; let afterStatus=false;
+    for(const tk of toks){
+      if(afterStatus&&!/^(買わない|かわない|見送り)$/.test(tk)){memo.push(tk);continue}
+      if(!r.code&&/^[0-9][0-9A-Za-z]{3}$/.test(tk)){r.code=tk.toUpperCase();continue}
+      if(/^(open|寄付?|寄り)$/i.test(tk)){times.push("寄付");continue}
+      if(/^\d{1,2}:\d{2}$/.test(tk)){times.push(normT(tk));continue}
+      if(/^(買い|売り|買|売)$/.test(tk)){sides.push(tk[0]);continue}
+      if(/^(空売り|信用売り?|ショート|short)$/i.test(tk)){sides.unshift("売");continue}
+      if(/^引成/.test(tk)){r.hike=true;if(times.length<2)times.push("15:30");const m=tk.match(/[売買]/);if(m)sides.push(m[0]);continue}
+      if(/^go$/i.test(tk)){r.status="Go";afterStatus=true;continue}
+      if(/^wait$/i.test(tk)){r.status="Wait";afterStatus=true;continue}
+      if(/^(買わない|かわない|見送り)$/.test(tk)){r.status="買わない";afterStatus=true;continue}
+      if(/^[★☆*]$/.test(tk)){r.star=true;continue}
+      (afterStatus?memo:name).push(tk);
+    }
+    if(sides[0]==="売"){r.dir="short";r.sell=times[0]||"";r.buy=times[1]||""}
+    else{r.buy=times[0]||"";r.sell=times[1]||""}
+    r.name=name.join(" ")||lookup(r.code); r.memo=memo.join(" ");
+    if(name.length)learn(r.code,r.name);
+    if(r.code||r.name)out.push(r);
+  });
+  return out;
+}
+
+/* ---------- events ---------- */
+function events(){
+  const ev=[];
+  S.rows.forEach((r,i)=>{
+    if(!r.code&&!r.name)return;
+    const skip=r.status==="買わない", b=parseT(r.buy), s=parseT(r.sell);
+    if(b!=null)ev.push({r,i,side:"buy",t:b,skip});
+    if(s!=null)ev.push({r,i,side:"sell",t:s,skip});
+  });
+  ev.sort((a,b)=>a.t-b.t||(a.side===b.side?a.i-b.i:a.side==="sell"?-1:1));
+  return ev;
+}
+const heldBack=e=>{const r=e.r,en=entrySide(r);return e.side!==en&&r.status==="Wait"&&!doneOf(r,en)&&parseT(r[en])!=null};
+const isDone=e=>e.side==="buy"?e.r.buyDone:e.r.sellDone;
+function pnl(r){
+  const b=num(r.buyPx), s=num(r.sellPx); if(b==null||s==null||!b)return null;
+  const q=num(r.qty); return{pct:(s-b)/b*100,yen:q!=null?(s-b)*q:null};
+}
+const fmtYen=v=>(v>0?"+":v<0?"−":"")+Math.abs(Math.round(v)).toLocaleString("ja-JP")+"円";
+const fmtPct=v=>(v>0?"+":v<0?"−":"")+Math.abs(v).toFixed(2)+"%";
+
+/* ---------- render: header ---------- */
+function renderHeader(){
+  $("dateLbl").textContent=dateLabel(S.date);
+  $("todayBtn").hidden=isToday();
+  $("tabTrade").setAttribute("aria-selected",S.view==="trade");
+  $("tabEdit").setAttribute("aria-selected",S.view==="edit");
+  $("tradeView").hidden=S.view!=="trade"; $("editView").hidden=S.view!=="edit";
+}
+function tickClock(){
+  const sec=nowSec(), h=Math.floor(sec/3600), m=Math.floor(sec/60)%60, s=sec%60;
+  $("clock").textContent=h+":"+String(m).padStart(2,"0")+":"+String(s).padStart(2,"0");
+  const [p,c]=phase(sec,jstToday()); const el=$("phase"); el.textContent=p; el.className="phase "+c;
+  const cd=document.querySelector("[data-cd]");
+  if(cd){const left=+cd.dataset.cd*60-sec; cd.textContent=cdText(left); cd.classList.toggle("soon",left<=300)}
+}
+function cdText(left){
+  if(left<=0)return "今";
+  const h=Math.floor(left/3600), m=Math.floor(left/60)%60, s=left%60;
+  return "あと "+(h?h+"時間":"")+(h||m?m+"分":"")+(h?"":String(s).padStart(2,"0")+"秒");
+}
+
+/* ---------- render: trade ---------- */
+function renderTrade(){
+  const root=$("tradeView"); const ev=events();
+  if(!ev.length){
+    root.innerHTML='<div class="empty"><p>この日の銘柄はまだありません。<br>「銘柄を編集」で追加すると、ここに時刻順の売買予定が並びます。</p><div class="btnrow"><button class="btn primary" data-go="edit">銘柄を追加</button><button class="btn" data-copyprev>前日のリストをコピー</button></div></div>';
+    return;
+  }
+  const today=isToday(), nowM=nowSec()/60;
+  const live=ev.filter(e=>!e.skip);
+  const pending=live.filter(e=>!isDone(e)&&!heldBack(e));
+  let next=null, late=[];
+  if(today){
+    const f=pending.find(e=>e.t>=Math.floor(nowM));
+    next=f?pending.filter(e=>e.t===f.t):null;
+    late=pending.filter(e=>e.t<Math.floor(nowM));
+  }
+  let h="";
+  if(today&&next){
+    const n0=next[0];
+    h+='<section class="next"><div class="eyebrow">次の売買'+(next.length>1?'（'+next.length+'件）':'')+'</div><div class="main"><span class="t">'+fmtT(n0.t,n0.r[n0.side])+'</span><span class="cd" data-cd="'+n0.t+'"></span></div>'
+      +next.map(e=>'<button class="what jump is-'+e.side+'" data-jump="'+e.r.id+':'+e.side+'"><span class="act">'+(e.side===exitSide(e.r)&&e.r.hike?"引成":"")+sideJa(e.side)+'</span> '+esc(e.r.name||e.r.code)+' <span class="code">'+esc(e.r.code)+'</span><span class="go-arrow" aria-hidden="true">›</span></button>').join("")+'</section>';
+  }else if(today&&live.length&&nowM>=CLOSE){
+    h+='<section class="next"><div class="eyebrow">本日の売買は終了</div><div class="what">おつかれさまでした</div></section>';
+  }
+  if(late.length)h+='<div class="overdue">時刻を過ぎてまだ済になっていない：'+late.map(e=>'<button class="jump-link" data-jump="'+e.r.id+':'+e.side+'">'+esc(e.r.name||e.r.code)+'（'+(e.side==="buy"?"買":"売")+'）</button>').join("、")+'</div>';
+
+  // summary
+  const act=S.rows.filter(r=>(r.code||r.name)&&r.status!=="買わない");
+  const entered=act.filter(r=>doneOf(r,entrySide(r))).length, closed=act.filter(r=>doneOf(r,exitSide(r))).length;
+  let tot=0, has=false; S.rows.forEach(r=>{const p=pnl(r);if(p&&p.yen!=null){tot+=p.yen;has=true}});
+  h+='<div class="summary"><span>対象<b>'+act.length+'銘柄</b></span><span>エントリー済<b>'+entered+'</b></span><span>手仕舞い済<b>'+closed+'</b></span>'+(has?'<span>損益<b class="'+(tot>0?"pos":tot<0?"neg":"")+'">'+fmtYen(tot)+'</b></span>':'')+'</div>';
+
+  h+='<ul class="tape">'; let lineDone=!today;
+  live.forEach(e=>{
+    if(!lineDone&&e.t>nowM){h+='<li class="nowline num">'+fmtT(Math.floor(nowM))+' いま</li>';lineDone=true}
+    h+=evHtml(e,today,nowM);
+  });
+  if(!lineDone&&today)h+='<li class="nowline num">'+fmtT(Math.min(Math.floor(nowM),1439))+' いま</li>';
+  h+='</ul>';
+  const sk=ev.filter(e=>e.skip&&e.side===entrySide(e.r));
+  if(sk.length){h+='<div class="section-h">買わない</div><ul class="tape">'+sk.map(e=>evHtml(e,false,0)).join("")+'</ul>'}
+  root.innerHTML=h; tickClock();
+}
+function evHtml(e,today,nowM){
+  const r=e.r, done=isDone(e), raw=r[e.side];
+  const en=entrySide(r), ex=exitSide(r), isExit=e.side===ex;
+  const notEntered=isExit&&!doneOf(r,en)&&parseT(r[en])!=null, held=heldBack(e);
+  const late=today&&!done&&!e.skip&&!held&&e.t<Math.floor(nowM);
+  const k=r.id+":"+e.side;
+  const cls=["ev","side-"+e.side,r.star?"star":"",done?"done":"",late?"late":"",e.skip?"skip":"",held&&!done&&today&&parseT(r[en])<=nowM?"muted":""].join(" ");
+  const chip=(isExit&&r.hike?'<span class="chip hike">引成</span>':"")+(r.dir==="short"?'<span class="chip short">売→買</span>':"")+(r.status==="Go"?'<span class="chip go">Go</span>':r.status==="Wait"?'<span class="chip wait">Wait</span>':r.status==="買わない"?'<span class="chip skip">買わない</span>':"");
+  const o=isExit?en:ex, oT=parseT(r[o]);
+  let other="";
+  if(oT!=null){
+    const oDone=doneOf(r,o), oPx=r[o==="buy"?"buyPx":"sellPx"];
+    other=isExit?fmtT(oT,r[o])+" "+sideJa(o)+(oDone?"済"+(oPx?" "+oPx+"円":""):"")+" →":"→ "+fmtT(oT,r[o])+" "+sideJa(o)+(oDone?"済":"");
+  }
+  const p=pnl(r);
+  const subs=[other, notEntered&&!done?(held?"Waitのまま未購入":sideJa(en)+"に済なし"):"", isExit&&p?fmtPct(p.pct)+(p.yen!=null?" / "+fmtYen(p.yen):""):"", r.memo].filter(Boolean).map(esc).join(" · ");
+  const myPx=r[e.side==="buy"?"buyPx":"sellPx"];
+  const act=done?'<span class="act">'+(isExit&&r.hike?"引成"+sideJa(e.side).slice(0,1)+" 予約済":sideJa(e.side)+"済")+'</span>'+(myPx?'<span class="px num">'+esc(myPx)+'円</span>':''):'<span class="act">'+sideJa(e.side)+'</span>';
+  let h='<li class="'+cls+'" data-k="'+k+'"><div class="t">'+esc(fmtT(e.t,raw))+'</div><div class="body"><div class="top">'+act+'<span class="code">'+esc(r.code)+'</span><span class="name">'+esc(r.name)+'</span>'+chip+'</div>'+(subs?'<div class="sub">'+subs+'</div>':'')+'</div>';
+  h+=e.skip?'<span></span>':'<button class="chk" data-done="'+k+'" aria-pressed="'+done+'" aria-label="'+sideJa(e.side)+(done?"済（タップで取り消し）":"したらタップ")+'">'+(done?"済":"")+'</button>';
+  if(S.open===k){
+    const f=e.side==="buy"?"buyPx":"sellPx";
+    h+='<div class="detail"><label>'+(e.side==="buy"?"買値":"売値")+'<input class="num" inputmode="decimal" id="px-'+k+'" data-row="'+r.id+'" data-f="'+f+'" value="'+esc(r[f])+'" placeholder="例 1234.5"></label><label>株数<input class="num" inputmode="numeric" id="qty-'+k+'" data-row="'+r.id+'" data-f="qty" value="'+esc(r.qty)+'" placeholder="100"></label><div class="pnl" data-pnl="'+r.id+'"></div></div>';
+  }
+  return h+'</li>';
+}
+function updPnl(id){
+  const el=document.querySelector('[data-pnl="'+id+'"]'); const r=S.rows.find(x=>x.id===id); if(!el||!r)return;
+  const p=pnl(r); el.textContent=p?fmtPct(p.pct)+(p.yen!=null?"  "+fmtYen(p.yen):""):""; el.className="pnl "+(p?(p.pct>0?"pos":p.pct<0?"neg":""):"");
+}
+
+/* ---------- render: edit ---------- */
+function timeField(r,side,first){
+  const done=doneOf(r,side), px=r[side==="buy"?"buyPx":"sellPx"];
+  return '<div class="tf '+(side==="buy"?"b":"s")+(done?" done":"")+'"><span>'+(side==="buy"?"買":"売")+'</span><input id="'+side[0]+'-'+r.id+'" data-f="'+side+'" data-time value="'+esc(r[side])+'" placeholder="'+(first?"9:30":"11:30")+'" inputmode="numeric">'
+    +(done?'<em class="sumi" title="'+esc(px?px+"円":"")+'">'+(!first&&r.hike?"引成済":"済")+'</em>':first?'<button data-set="'+side+'" data-v="寄付">寄付</button>':'<button data-set="'+side+'" data-v="15:30" data-hike aria-pressed="'+!!r.hike+'">引成</button>')+'</div>';
+}
+function cardHtml(r){
+  const en=entrySide(r), ex=exitSide(r);
+  return '<div class="erow'+(r.star?" star":"")+'" data-id="'+r.id+'">'
+    +'<div class="g1"><input class="code-in" id="c-'+r.id+'" data-f="code" value="'+esc(r.code)+'" placeholder="コード" maxlength="5" autocapitalize="characters" inputmode="text"><input id="n-'+r.id+'" data-f="name" value="'+esc(r.name)+'" placeholder="銘柄名（コードで自動）"><button class="starbtn" data-star aria-pressed="'+r.star+'" aria-label="本命マーク">★</button></div>'
+    +'<div class="g2">'+timeField(r,en,true)+timeField(r,ex,false)+'</div>'
+    +'<div class="g3"><div class="seg dir"><button data-dir="long" aria-pressed="'+(r.dir!=="short")+'">買→売</button><button data-dir="short" aria-pressed="'+(r.dir==="short")+'">売→買</button></div>'
+    +'<div class="seg">'+["Go","Wait","買わない"].map(s=>'<button data-status="'+s+'" aria-pressed="'+(r.status===s)+'">'+s+'</button>').join("")+'</div><button class="del" data-del>削除</button></div>'
+    +'<input class="memo-in" id="m-'+r.id+'" data-f="memo" value="'+esc(r.memo)+'" placeholder="メモ（例：9:30にopen上回れば）">'
+    +'</div>';
+}
+function renderEdit(){
+  const root=$("editView");
+  let h='<div class="ed">';
+  if(!S.rows.length)h+='<div class="empty" style="margin-top:4px"><p>銘柄を1行ずつ追加するか、下の「まとめて貼り付け」に入力してください。</p><button class="btn" data-copyprev>前日のリストをコピー</button></div>';
+  S.rows.forEach(r=>{h+=cardHtml(r)});
+  h+='<div class="btnrow"><button class="btn primary" data-add>＋ 銘柄を追加</button>'+(S.rows.length?'<button class="btn danger" data-clearall>オールクリア（済・Go/Wait）</button>':'')+'</div>';
+  h+='<details class="paste"><summary>まとめて貼り付け</summary><p>1行1銘柄。「コード 時刻 買い 時刻 売り 銘柄名 Go/Wait/買わない メモ」の順。売りが先なら「9:30 売り 11:00 買い」と書けば売→買になります。銘柄名は省略してもコードから入ります。寄付は OPEN、引成は「引成」と書けます。</p><textarea id="pasteBox" placeholder="6758 OPEN 買い 15:30 売り Go&#10;8604 9:30 買い 11:30 売り Go&#10;9433 10:00 売り 12:59 買い Wait"></textarea><div class="btnrow"><button class="btn" data-paste="add">下に追加</button><button class="btn" data-paste="replace">全部置き換え</button></div></details>';
+  h+='<details class="paste" id="xfer"><summary>別の端末へ移す（書き出し・取り込み）</summary>'
+    +'<p>書き出し：この日のリストを文字にしてコピーします。もう一方のボードの「取り込み」に貼り付けてください。</p>'
+    +'<div class="btnrow"><button class="btn" data-export>'+esc(dateLabel(S.date))+'のリストを書き出す</button></div>'
+    +'<textarea id="exportBox" readonly hidden></textarea>'
+    +'<p>取り込み：書き出した文字を貼り付けて「取り込む」。書き出した日付のリストを置き換えます。</p>'
+    +'<textarea id="importBox" placeholder="ここに貼り付け"></textarea><div class="btnrow"><button class="btn" data-import>取り込む</button></div></details>';
+  h+='</div>';
+  root.innerHTML=h;
+}
+function renderAll(){renderHeader(); if(S.view==="trade")renderTrade(); else renderEdit()}
+
+/* ---------- interactions ---------- */
+$("tabTrade").onclick=()=>{S.view="trade";renderAll()};
+$("tabEdit").onclick=()=>{S.view="edit";renderAll()};
+$("prevDay").onclick=()=>loadDay(addDays(S.date,-1));
+$("nextDay").onclick=()=>loadDay(addDays(S.date,1));
+$("todayBtn").onclick=()=>loadDay(jstToday());
+document.addEventListener("click",ev=>{
+  const t=ev.target;
+  const go=t.closest("[data-go]"); if(go){S.view=go.dataset.go;renderAll();if(S.view==="edit"&&!S.rows.length)addRow();return}
+  if(t.closest("[data-copyprev]")){copyPrev();return}
+});
+function jumpTo(k){
+  S.open=k; renderTrade();
+  const li=document.querySelector('[data-k="'+k+'"]'); if(!li)return;
+  const reduce=window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches;
+  li.scrollIntoView({block:"center",behavior:reduce?"auto":"smooth"});
+  li.classList.add("flash"); setTimeout(()=>li.classList.remove("flash"),1800);
+}
+$("tradeView").addEventListener("click",ev=>{
+  const t=ev.target;
+  const j=t.closest("[data-jump]"); if(j){jumpTo(j.dataset.jump);return}
+  const d=t.closest("[data-done]");
+  if(d){
+    const [id,side]=d.dataset.done.split(":"); const r=S.rows.find(x=>x.id===id); if(!r)return;
+    const f=side==="buy"?"buyDone":"sellDone"; r[f]=!r[f];
+    const tt=parseT(r[side]), early=isToday()&&tt!=null&&tt*60>nowSec();
+    if(r[f]&&!early&&!r[side==="buy"?"buyPx":"sellPx"])S.open=id+":"+side;
+    save(); renderTrade();
+    if(S.open===id+":"+side){const inp=$("px-"+id+":"+side); if(inp)inp.focus()}
+    return;
+  }
+  if(t.closest(".detail"))return;
+  const li=t.closest(".ev"); if(!li||li.classList.contains("skip"))return;
+  S.open=S.open===li.dataset.k?null:li.dataset.k; renderTrade();
+});
+$("tradeView").addEventListener("input",ev=>{
+  const t=ev.target; if(!t.dataset.row)return;
+  const r=S.rows.find(x=>x.id===t.dataset.row); if(!r)return;
+  r[t.dataset.f]=t.value.trim(); save(); updPnl(r.id);
+});
+function rowOf(el){const w=el.closest(".erow");return w?S.rows.find(r=>r.id===w.dataset.id):null}
+function addRow(){
+  const r=newRow(); S.rows.push(r); save(); renderEdit();
+  const el=$("c-"+r.id); if(el){el.focus();el.scrollIntoView({block:"center"})}
+}
+$("editView").addEventListener("input",ev=>{
+  const t=ev.target, r=rowOf(t); if(!r||!t.dataset.f)return;
+  const f=t.dataset.f;
+  if(f==="code"){
+    r.code=t.value.toUpperCase().trim();
+    const nm=lookup(r.code), ni=$("n-"+r.id);
+    if(nm&&(!r.name||r.nameAuto)){r.name=nm;r.nameAuto=true;if(ni)ni.value=nm}
+    else if(!nm&&r.nameAuto){r.name="";if(ni)ni.value=""}
+    if(ni){const miss=/^[0-9][0-9A-Z]{3}$/.test(r.code)&&!nm&&!r.name;ni.classList.toggle("need",miss);ni.placeholder=miss?"辞書にありません。名前を入力":"銘柄名（コードで自動）"}
+  }else if(f==="name"){r.name=t.value;r.nameAuto=false;t.classList.remove("need")}
+  else r[f]=t.value;
+  save();
+});
+$("editView").addEventListener("focusout",ev=>{
+  const t=ev.target, r=rowOf(t); if(!r)return;
+  if(t.dataset.f==="name"&&!r.nameAuto)learn(r.code,r.name);
+});
+$("editView").addEventListener("change",ev=>{
+  const t=ev.target, r=rowOf(t); if(!r||t.dataset.time==null)return;
+  const v=normT(t.value); t.value=v; r[t.dataset.f]=v;
+  if(t.dataset.f===exitSide(r)&&r.hike&&v!=="15:30"){r.hike=false;const hb=t.parentNode.querySelector("[data-hike]");if(hb)hb.setAttribute("aria-pressed","false")}
+  save();
+});
+$("editView").addEventListener("click",ev=>{
+  const t=ev.target;
+  if(t.closest("[data-add]")){addRow();return}
+  const ca=t.closest("[data-clearall]");
+  if(ca){
+    if(!ca.classList.contains("arm")){
+      ca.classList.add("arm");ca.textContent="もう一度押すとクリア";
+      setTimeout(()=>{if(ca.isConnected){ca.classList.remove("arm");ca.textContent="オールクリア（済・Go/Wait）"}},3000);
+      return;
+    }
+    S.rows.forEach(r=>{r.buyDone=false;r.sellDone=false;r.buyPx="";r.sellPx="";r.status=""});
+    S.open=null; save(); renderEdit(); toast("済・約定値・Go/Waitをクリアしました");
+    return;
+  }
+  if(t.closest("[data-export]")){
+    const txt="#デイトレ売買ボード\n"+JSON.stringify({v:1,date:S.date,rows:S.rows,names:MY});
+    const box=$("exportBox"); box.value=txt; box.hidden=false;
+    const sel=()=>{box.focus();box.select();try{box.setSelectionRange(0,txt.length)}catch(e){}};
+    try{navigator.clipboard.writeText(txt).then(()=>toast("コピーしました。もう一方で取り込んでください"),()=>{sel();toast("文字を選択しました。コピーしてください")})}
+    catch(e){sel();toast("文字を選択しました。コピーしてください")}
+    return;
+  }
+  const im=t.closest("[data-import]");
+  if(im){
+    const raw=$("importBox").value; const i=raw.indexOf("{");
+    let o=null; try{o=JSON.parse(raw.slice(i))}catch(e){}
+    if(!o||!o.date||!Array.isArray(o.rows)){toast("読み取れません。書き出した文字を全部貼り付けてください");return}
+    const cur=o.date===S.date?S.rows:(lsGet(o.date)||[]);
+    if(cur.length&&!im.classList.contains("arm")){
+      im.classList.add("arm");im.textContent=dateLabel(o.date)+"を置き換えます。もう一度押す";
+      setTimeout(()=>{if(im.isConnected){im.classList.remove("arm");im.textContent="取り込む"}},4000);
+      return;
+    }
+    if(o.names)Object.keys(o.names).forEach(k=>learn(k,o.names[k]));
+    const rows=o.rows.map(r=>newRow(r));
+    if(o.date!==S.date){loadDay(o.date)}
+    S.rows=rows; save(); renderAll(); toast(dateLabel(o.date)+"に"+rows.length+"銘柄を取り込みました");
+    return;
+  }
+  const pz=t.closest("[data-paste]");
+  if(pz){
+    const box=$("pasteBox"), rows=parseText(box.value);
+    if(!rows.length){toast("読み取れる行がありません");return}
+    if(pz.dataset.paste==="replace")S.rows=rows; else S.rows=S.rows.concat(rows);
+    save(); renderEdit(); toast(rows.length+"銘柄を取り込みました"); return;
+  }
+  const r=rowOf(t); if(!r)return;
+  if(t.closest("[data-star]")){r.star=!r.star;save();const w=t.closest(".erow");w.classList.toggle("star",r.star);t.setAttribute("aria-pressed",r.star);return}
+  const st=t.closest("[data-status]");
+  if(st){r.status=r.status===st.dataset.status?"":st.dataset.status;save();st.parentNode.querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.status===r.status));return}
+  const dr=t.closest("[data-dir]");
+  if(dr){if(r.dir!==dr.dataset.dir){r.dir=dr.dataset.dir;save();t.closest(".erow").outerHTML=cardHtml(r)}return}
+  const set=t.closest("[data-set]");
+  if(set){
+    const inp=set.parentNode.querySelector("input");
+    if(set.dataset.hike!=null){r.hike=!r.hike;if(r.hike){r[set.dataset.set]="15:30";inp.value="15:30"}set.setAttribute("aria-pressed",r.hike)}
+    else{r[set.dataset.set]=set.dataset.v;inp.value=set.dataset.v}
+    save();return}
+  const del=t.closest("[data-del]");
+  if(del){
+    if(del.classList.contains("arm")){S.rows=S.rows.filter(x=>x!==r);save();renderEdit();return}
+    del.classList.add("arm");del.textContent="もう一度押すと削除";
+    setTimeout(()=>{if(del.isConnected){del.classList.remove("arm");del.textContent="削除"}},3000);
+  }
+});
+
+/* wake lock */
+let lock=null;
+$("wakeBtn").onclick=async()=>{
+  const b=$("wakeBtn");
+  if(lock){try{await lock.release()}catch(e){} lock=null;b.setAttribute("aria-pressed","false");return}
+  try{lock=await navigator.wakeLock.request("screen");b.setAttribute("aria-pressed","true");lock.addEventListener("release",()=>{lock=null;b.setAttribute("aria-pressed","false")})}
+  catch(e){toast("この画面ではスリープ防止が使えません")}
+};
+
+/* ticking */
+setInterval(tickClock,1000);
+let lastMin=-1;
+setInterval(()=>{const m=Math.floor(nowSec()/60);if(m!==lastMin){lastMin=m;if(S.view==="trade"&&!editingNow())renderTrade()}},5000);
+document.addEventListener("visibilitychange",()=>{if(!document.hidden&&S.view==="trade"&&!editingNow())renderTrade()});
+
+/* boot */
+S.rows=lsGet(S.date)||[];
+renderAll(); tickClock(); setSaveState("この端末に保存（同期を準備中…）");
+(async()=>{
+  const c=window.claude;
+  const db=c&&c.use?await c.use("db"):null;
+  if(!db){setSaveState("この端末にだけ保存されます");return}
+  S.db=db; subscribe();
+  try{const s=await db.doc("meta/names").get();if(s.exists){MY=Object.assign({},s.data().names||{},MY);try{localStorage.setItem("daytrade-board:names",JSON.stringify(MY))}catch(e){}}}catch(e){}
+})();
+})();
+</script>
+
+<script>
+if("serviceWorker" in navigator){window.addEventListener("load",()=>{navigator.serviceWorker.register("sw.js").catch(()=>{})})}
+</script>
+</body></html>
