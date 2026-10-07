@@ -334,7 +334,7 @@ async function findPrevRows(){
 async function copyPrev(){
   const p=await findPrevRows();
   if(!p){toast("直近10日に銘柄リストが見つかりません");return}
-  S.rows=p.rows.map(r=>newRow({code:r.code,name:r.name,buy:r.buy,sell:r.sell,dir:r.dir||"long",status:"",skip:false,star:false,memo:r.memo,qty:r.qty,hike:!!r.hike}));
+  S.rows=p.rows.map(r=>newRow({code:r.code,name:r.name,buy:r.buy,sell:r.sell,dir:r.dir||"long",status:"",star:false,memo:r.memo,qty:r.qty,hike:!!r.hike}));
   save(); renderAll(); toast(dateLabel(p.d)+"のリストをコピーしました");
 }
 
@@ -523,7 +523,7 @@ function renderEdit(){
   let h='<div class="ed">';
   if(!S.rows.length)h+='<div class="empty" style="margin-top:4px"><p>銘柄を1行ずつ追加するか、下の「まとめて貼り付け」に入力してください。</p><button class="btn" data-copyprev>前日のリストをコピー</button></div>';
   S.rows.forEach(r=>{h+=cardHtml(r)});
-  h+='<div class="btnrow"><button class="btn primary" data-add>＋ 銘柄を追加</button>'+(S.rows.length?'<button class="btn danger" data-clearall>オールクリア（済・Go/Wait・買わない）</button>':'')+'</div>';
+  h+='<div class="btnrow"><button class="btn primary" data-add>＋ 銘柄を追加</button>'+(S.rows.length?'<button class="btn danger" data-clearall>オールクリア（済・Go/Wait）</button>':'')+'</div>';
   h+='<details class="paste"><summary>まとめて貼り付け</summary><p>1行1銘柄。「コード 時刻 買い 時刻 売り 銘柄名 Go/Wait/買わない メモ」の順。売りが先なら「9:30 売り 11:00 買い」と書けば売→買になります。銘柄名は省略してもコードから入ります。寄付は OPEN、引成は「引成」と書けます。</p><textarea id="pasteBox" placeholder="6758 OPEN 買い 15:30 売り Go&#10;8604 9:30 買い 11:30 売り Go&#10;9433 10:00 売り 12:59 買い Wait"></textarea><div class="btnrow"><button class="btn" data-paste="add">下に追加</button><button class="btn" data-paste="replace">全部置き換え</button></div></details>';
   h+='<details class="paste" id="xfer"><summary>別の端末へ移す（書き出し・取り込み）</summary>'
     +'<p>書き出し：この日のリストを文字にしてコピーします。もう一方のボードの「取り込み」に貼り付けてください。</p>'
@@ -611,11 +611,11 @@ $("editView").addEventListener("click",ev=>{
   if(ca){
     if(!ca.classList.contains("arm")){
       ca.classList.add("arm");ca.textContent="もう一度押すとクリア";
-      setTimeout(()=>{if(ca.isConnected){ca.classList.remove("arm");ca.textContent="オールクリア（済・Go/Wait・買わない）"}},3000);
+      setTimeout(()=>{if(ca.isConnected){ca.classList.remove("arm");ca.textContent="オールクリア（済・Go/Wait）"}},3000);
       return;
     }
-    S.rows.forEach(r=>{r.buyDone=false;r.sellDone=false;r.buyPx="";r.sellPx="";r.status="";r.skip=false});
-    S.open=null; save(); renderEdit(); toast("済・約定値・Go/Wait・買わないをクリアしました");
+    S.rows.forEach(r=>{r.buyDone=false;r.sellDone=false;r.buyPx="";r.sellPx="";r.status=""});
+    S.open=null; save(); renderEdit(); toast("済・約定値・Go/Waitをクリアしました");
     return;
   }
   if(t.closest("[data-export]")){
