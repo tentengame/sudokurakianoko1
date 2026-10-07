@@ -494,6 +494,23 @@ function cardHtml(r){
     +'<input class="memo-in" id="m-'+r.id+'" data-f="memo" value="'+esc(r.memo)+'" placeholder="メモ（例：9:30にopen上回れば）">'
     +'</div>';
 }
+function looksExported(raw){return /#デイトレ売買ボード/.test(raw)||/["“”]rows["“”]\s*:/.test(raw)}
+function importText(raw,btn,label){
+  raw=String(raw||"").replace(/[“”„‟″〃]/g,'"').replace(/[‘’]/g,"'");
+  const i=raw.indexOf("{"), j=raw.lastIndexOf("}");
+  let o=null; try{o=JSON.parse(raw.slice(i,j+1))}catch(e){}
+  if(!o||!o.date||!Array.isArray(o.rows)){toast("読み取れません。書き出した文字を最初から最後まで全部貼り付けてください");return}
+  const cur=o.date===S.date?S.rows:(lsGet(o.date)||[]);
+  if(cur.length&&!btn.classList.contains("arm")){
+    btn.classList.add("arm");btn.textContent=dateLabel(o.date)+"を置き換えます。もう一度押す";
+    setTimeout(()=>{if(btn.isConnected){btn.classList.remove("arm");btn.textContent=label}},4000);
+    return;
+  }
+  if(o.names)Object.keys(o.names).forEach(k=>learn(k,o.names[k]));
+  const rows=o.rows.map(r=>newRow(r));
+  if(o.date!==S.date){loadDay(o.date)}
+  S.rows=rows; save(); renderAll(); toast(dateLabel(o.date)+"に"+rows.length+"銘柄を取り込みました");
+}
 function renderEdit(){
   const root=$("editView");
   let h='<div class="ed">';
@@ -505,7 +522,7 @@ function renderEdit(){
     +'<p>書き出し：この日のリストを文字にしてコピーします。もう一方のボードの「取り込み」に貼り付けてください。</p>'
     +'<div class="btnrow"><button class="btn" data-export>'+esc(dateLabel(S.date))+'のリストを書き出す</button></div>'
     +'<textarea id="exportBox" readonly hidden></textarea>'
-    +'<p>取り込み：書き出した文字を貼り付けて「取り込む」。書き出した日付のリストを置き換えます。</p>'
+    +'<p>取り込み：書き出した文字をこの下の欄に貼り付けて「取り込む」。書き出した日付のリストを丸ごと置き換えます（上の「まとめて貼り付け」に貼っても同じく取り込めます）。</p>'
     +'<textarea id="importBox" placeholder="ここに貼り付け"></textarea><div class="btnrow"><button class="btn" data-import>取り込む</button></div></details>';
   h+='</div>';
   root.innerHTML=h;
@@ -603,25 +620,12 @@ $("editView").addEventListener("click",ev=>{
     return;
   }
   const im=t.closest("[data-import]");
-  if(im){
-    const raw=$("importBox").value; const i=raw.indexOf("{");
-    let o=null; try{o=JSON.parse(raw.slice(i))}catch(e){}
-    if(!o||!o.date||!Array.isArray(o.rows)){toast("読み取れません。書き出した文字を全部貼り付けてください");return}
-    const cur=o.date===S.date?S.rows:(lsGet(o.date)||[]);
-    if(cur.length&&!im.classList.contains("arm")){
-      im.classList.add("arm");im.textContent=dateLabel(o.date)+"を置き換えます。もう一度押す";
-      setTimeout(()=>{if(im.isConnected){im.classList.remove("arm");im.textContent="取り込む"}},4000);
-      return;
-    }
-    if(o.names)Object.keys(o.names).forEach(k=>learn(k,o.names[k]));
-    const rows=o.rows.map(r=>newRow(r));
-    if(o.date!==S.date){loadDay(o.date)}
-    S.rows=rows; save(); renderAll(); toast(dateLabel(o.date)+"に"+rows.length+"銘柄を取り込みました");
-    return;
-  }
+  if(im){importText($("importBox").value,im,"取り込む");return}
   const pz=t.closest("[data-paste]");
   if(pz){
-    const box=$("pasteBox"), rows=parseText(box.value);
+    const box=$("pasteBox");
+    if(looksExported(box.value)){importText(box.value,pz,pz.dataset.paste==="replace"?"全部置き換え":"下に追加");return}
+    const rows=parseText(box.value);
     if(!rows.length){toast("読み取れる行がありません");return}
     if(pz.dataset.paste==="replace")S.rows=rows; else S.rows=S.rows.concat(rows);
     save(); renderEdit(); toast(rows.length+"銘柄を取り込みました"); return;

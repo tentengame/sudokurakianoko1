@@ -1,5 +1,5 @@
 // デイトレ売買ボード: 通信なしでも開けるようにするための仕組み
-const CACHE="dtb-feb2a683ee";
+const CACHE="dtb-e21d6c4623";
 const SHELL=["./","index.html","manifest.webmanifest","icon-192.png","icon-512.png","apple-touch-icon.png"];
 self.addEventListener("install",e=>{e.waitUntil(caches.open(CACHE).then(c=>c.addAll(SHELL)).then(()=>self.skipWaiting()))});
 self.addEventListener("activate",e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k.startsWith("dtb-")&&k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()))});
