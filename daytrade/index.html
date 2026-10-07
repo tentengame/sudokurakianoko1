@@ -147,6 +147,10 @@ input.need::placeholder{color:var(--warn);opacity:1}
 .seg{display:flex;background:var(--chip);border-radius:8px;padding:2px}
 .seg button{border:0;background:none;font-size:12px;font-weight:700;padding:6px 9px;border-radius:6px;color:var(--muted)}
 .seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgb(0 0 0 / .12)}
+.skipbtn{border:1px solid var(--line);background:var(--surface);border-radius:8px;font-size:12px;font-weight:700;padding:6px 10px;color:var(--muted)}
+.skipbtn[aria-pressed="true"]{background:var(--buy);border-color:var(--buy);color:#fff}
+.erow.skipped{opacity:.6}
+.skipnote{font-size:12px;color:var(--muted);margin:14px 2px 0}
 .del{margin-left:auto;border:0;background:none;color:var(--muted);font-size:12px;padding:6px 4px}
 .del.arm{color:var(--buy);font-weight:700}
 .memo-in{width:100%}
@@ -240,7 +244,7 @@ const clone=o=>JSON.parse(JSON.stringify(o));
 const uid=()=>Math.random().toString(36).slice(2,9);
 const num=v=>{const n=parseFloat(String(v||"").replace(/,/g,""));return isFinite(n)?n:null};
 function toast(t){const el=$("toast");el.textContent=t;el.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>el.hidden=true,1800)}
-function newRow(p){return Object.assign({id:uid(),code:"",name:"",buy:"",sell:"",dir:"long",status:"Go",star:false,memo:"",qty:"",buyPx:"",sellPx:"",buyDone:false,sellDone:false},p||{})}
+function newRow(p){return Object.assign({id:uid(),code:"",name:"",buy:"",sell:"",dir:"long",status:"Go",skip:false,star:false,memo:"",qty:"",buyPx:"",sellPx:"",buyDone:false,sellDone:false},p||{})}
 
 /* ---------- 銘柄名辞書（主要銘柄）＋自分で入れた名前を記憶 ---------- */
 const DICT=Object.fromEntries(("1332 ニッスイ|1605 INPEX|1721 コムシスHD|1801 大成建設|1802 大林組|1803 清水建設|1812 鹿島|1878 大東建託|1911 住友林業|1925 大和ハウス|1928 積水ハウス|1963 日揮HD|2002 日清製粉G|2181 パーソルHD|2229 カルビー|2269 明治HD|2282 日本ハム|2413 エムスリー|2432 DeNA|2501 サッポロHD|2502 アサヒGHD|2503 キリンHD|2587 サントリーBF|2593 伊藤園|2768 双日|2801 キッコーマン|2802 味の素|2871 ニチレイ|2897 日清食品HD|2914 JT|3086 Jフロント|3088 マツキヨココカラ|3099 三越伊勢丹|3289 東急不動産HD|3382 セブン&アイ|3401 帝人|3402 東レ|3407 旭化成|3436 SUMCO|3659 ネクソン|3697 SHIFT|3778 さくらインターネット|3861 王子HD|3923 ラクス|4004 レゾナック|4005 住友化学|4021 日産化学|4042 東ソー|4043 トクヤマ|4061 デンカ|4062 イビデン|4063 信越化学|4151 協和キリン|4183 三井化学|4186 東京応化|4188 三菱ケミカルG|4208 UBE|4307 野村総研|4324 電通G|4385 メルカリ|4452 花王|4502 武田薬品|4503 アステラス|4506 住友ファーマ|4507 塩野義|4519 中外製薬|4523 エーザイ|4528 小野薬品|4543 テルモ|4568 第一三共|4578 大塚HD|4661 OLC|4684 オービック|4689 LINEヤフー|4704 トレンドマイクロ|4751 サイバーエージェント|4755 楽天G|4901 富士フイルム|4902 コニカミノルタ|4911 資生堂|5016 JX金属|5019 出光興産|5020 ENEOS|5101 横浜ゴム|5108 ブリヂストン|5201 AGC|5214 日本電気硝子|5233 太平洋セメント|5301 東海カーボン|5332 TOTO|5333 日本ガイシ|5401 日本製鉄|5406 神戸製鋼|5411 JFE|5631 日本製鋼所|5706 三井金属|5711 三菱マテリアル|5713 住友金属鉱山|5714 DOWA|5801 古河電工|5802 住友電気工業|5803 フジクラ|5830 いよぎん|5831 しずおかFG|5838 楽天銀行|6098 リクルート|6146 ディスコ|6178 日本郵政|6268 ナブテスコ|6273 SMC|6301 コマツ|6302 住友重機|6305 日立建機|6315 TOWA|6323 ローツェ|6326 クボタ|6361 荏原|6367 ダイキン|6383 ダイフク|6448 ブラザー|6471 日本精工|6472 NTN|6473 ジェイテクト|6479 ミネベアミツミ|6501 日立|6503 三菱電機|6504 富士電機|6506 安川電機|6525 KOKUSAI|6526 ソシオネクスト|6532 ベイカレント|6586 マキタ|6594 ニデック|6645 オムロン|6701 NEC|6702 富士通|6723 ルネサス|6724 セイコーエプソン|6752 パナソニック|6753 シャープ|6758 SONY|6762 TDK|6770 アルプスアルパイン|6807 日本航空電子|6834 精工技研|6841 横河電機|6855 日本電子材料|6862 ミナトHD|6857 アドバンテスト|6861 キーエンス|6869 シスメックス|6890 フェローテック|6902 デンソー|6920 レーザーテック|6952 カシオ|6954 ファナック|6963 ローム|6965 浜松ホトニクス|6971 京セラ|6976 太陽誘電|6981 村田製作所|6988 日東電工|6995 東海理化|7003 三井E&S|7004 カナデビア|7011 三菱重工|7012 川崎重工|7013 IHI|7014 名村造船|7167 めぶきFG|7181 かんぽ生命|7182 ゆうちょ|7201 日産|7202 いすゞ|7203 トヨタ|7205 日野自動車|7211 三菱自動車|7220 武蔵精密|7259 アイシン|7261 マツダ|7267 ホンダ|7269 スズキ|7270 SUBARU|7272 ヤマハ発動機|7453 良品計画|7731 ニコン|7733 オリンパス|7735 SCREEN|7741 HOYA|7751 キヤノン|7752 リコー|7832 バンダイナムコ|7911 TOPPAN|7912 大日本印刷|7936 アシックス|7951 ヤマハ|7974 任天堂|8001 伊藤忠|8002 丸紅|8015 豊田通商|8031 三井物産|8035 東京エレクトロン|8053 住友商事|8058 三菱商事|8113 ユニ・チャーム|8136 サンリオ|8233 高島屋|8252 丸井G|8267 イオン|8304 あおぞら銀|8306 MUFJ|8308 りそなHD|8309 三井住友トラスト|8316 三井住友FG|8331 千葉銀行|8354 ふくおかFG|8361 大垣共立銀行|8410 セブン銀行|8411 みずほFG|8473 SBI HD|8591 オリックス|8601 大和証券G|8604 野村|8628 松井証券|8630 SOMPO|8697 JPX|8725 MS&AD|8750 第一生命HD|8766 東京海上|8795 T&D HD|8801 三井不動産|8802 三菱地所|8830 住友不動産|8876 リログループ|9001 東武|9005 東急|9007 小田急|9008 京王|9009 京成|9020 JR東日本|9021 JR西日本|9022 JR東海|9064 ヤマトHD|9101 日本郵船|9104 商船三井|9107 川崎汽船|9201 JAL|9202 ANA|9432 NTT|9433 KDDI|9434 ソフトバンク|9468 KADOKAWA|9501 東京電力HD|9502 中部電力|9503 関西電力|9531 東京ガス|9532 大阪ガス|9602 東宝|9684 スクエニHD|9697 カプコン|9719 SCSK|9735 セコム|9766 コナミG|9843 ニトリHD|9983 ファーストリテイリング|9984 ソフトバンクG|285A キオクシア").split("|").map(s=>{const i=s.indexOf(" ");return[s.slice(0,i),s.slice(i+1)]}));
@@ -256,6 +260,8 @@ function learn(code,name){
   try{localStorage.setItem("daytrade-board:names",JSON.stringify(MY))}catch(e){}
   clearTimeout(namesT); namesT=setTimeout(()=>{if(S.db)S.db.doc("meta/names").set({names:MY}).catch(()=>{})},1500);
 }
+const isSkip=r=>!!r.skip||r.status==="買わない";
+const stOf=r=>r.status==="Go"||r.status==="Wait"?r.status:"";
 const entrySide=r=>r.dir==="short"?"sell":"buy";
 const exitSide=r=>r.dir==="short"?"buy":"sell";
 const sideJa=s=>s==="buy"?"買い":"売り";
@@ -328,7 +334,7 @@ async function findPrevRows(){
 async function copyPrev(){
   const p=await findPrevRows();
   if(!p){toast("直近10日に銘柄リストが見つかりません");return}
-  S.rows=p.rows.map(r=>newRow({code:r.code,name:r.name,buy:r.buy,sell:r.sell,dir:r.dir||"long",status:"",star:false,memo:r.memo,qty:r.qty,hike:!!r.hike}));
+  S.rows=p.rows.map(r=>newRow({code:r.code,name:r.name,buy:r.buy,sell:r.sell,dir:r.dir||"long",status:"",skip:false,star:false,memo:r.memo,qty:r.qty,hike:!!r.hike}));
   save(); renderAll(); toast(dateLabel(p.d)+"のリストをコピーしました");
 }
 
@@ -349,7 +355,7 @@ function parseText(txt){
       if(/^引成/.test(tk)){r.hike=true;if(times.length<2)times.push("15:30");const m=tk.match(/[売買]/);if(m)sides.push(m[0]);continue}
       if(/^go$/i.test(tk)){r.status="Go";afterStatus=true;continue}
       if(/^wait$/i.test(tk)){r.status="Wait";afterStatus=true;continue}
-      if(/^(買わない|かわない|見送り)$/.test(tk)){r.status="買わない";afterStatus=true;continue}
+      if(/^(買わない|かわない|見送り)$/.test(tk)){r.skip=true;afterStatus=true;continue}
       if(/^[★☆*]$/.test(tk)){r.star=true;continue}
       (afterStatus?memo:name).push(tk);
     }
@@ -367,7 +373,7 @@ function events(){
   const ev=[];
   S.rows.forEach((r,i)=>{
     if(!r.code&&!r.name)return;
-    const skip=r.status==="買わない", b=parseT(r.buy), s=parseT(r.sell);
+    const skip=isSkip(r), b=parseT(r.buy), s=parseT(r.sell);
     if(b!=null)ev.push({r,i,side:"buy",t:b,skip});
     if(s!=null)ev.push({r,i,side:"sell",t:s,skip});
   });
@@ -413,6 +419,7 @@ function renderTrade(){
   }
   const today=isToday(), nowM=nowSec()/60;
   const live=ev.filter(e=>!e.skip);
+  if(!live.length){root.innerHTML='<div class="empty"><p>この日の銘柄は全部「買わない」になっています。<br>「銘柄を編集」で買わないを外すと、ここに並びます。</p><div class="btnrow"><button class="btn" data-go="edit">銘柄を編集</button></div></div>';return}
   const pending=live.filter(e=>!isDone(e)&&!heldBack(e));
   let next=null, late=[];
   if(today){
@@ -431,7 +438,7 @@ function renderTrade(){
   if(late.length)h+='<div class="overdue">時刻を過ぎてまだ済になっていない：'+late.map(e=>'<button class="jump-link" data-jump="'+e.r.id+':'+e.side+'">'+esc(e.r.name||e.r.code)+'（'+(e.side==="buy"?"買":"売")+'）</button>').join("、")+'</div>';
 
   // summary
-  const act=S.rows.filter(r=>(r.code||r.name)&&r.status!=="買わない");
+  const act=S.rows.filter(r=>(r.code||r.name)&&!isSkip(r));
   const entered=act.filter(r=>doneOf(r,entrySide(r))).length, closed=act.filter(r=>doneOf(r,exitSide(r))).length;
   let tot=0, has=false; S.rows.forEach(r=>{const p=pnl(r);if(p&&p.yen!=null){tot+=p.yen;has=true}});
   h+='<div class="summary"><span>対象<b>'+act.length+'銘柄</b></span><span>エントリー済<b>'+entered+'</b></span><span>手仕舞い済<b>'+closed+'</b></span>'+(has?'<span>損益<b class="'+(tot>0?"pos":tot<0?"neg":"")+'">'+fmtYen(tot)+'</b></span>':'')+'</div>';
@@ -444,7 +451,7 @@ function renderTrade(){
   if(!lineDone&&today)h+='<li class="nowline num">'+fmtT(Math.min(Math.floor(nowM),1439))+' いま</li>';
   h+='</ul>';
   const sk=ev.filter(e=>e.skip&&e.side===entrySide(e.r));
-  if(sk.length){h+='<div class="section-h">買わない</div><ul class="tape">'+sk.map(e=>evHtml(e,false,0)).join("")+'</ul>'}
+  if(sk.length)h+='<p class="skipnote">「買わない」の'+sk.length+'銘柄は表示していません（「銘柄を編集」で確認できます）</p>';
   root.innerHTML=h; tickClock();
 }
 function evHtml(e,today,nowM){
@@ -454,7 +461,7 @@ function evHtml(e,today,nowM){
   const late=today&&!done&&!e.skip&&!held&&e.t<Math.floor(nowM);
   const k=r.id+":"+e.side;
   const cls=["ev","side-"+e.side,r.star?"star":"",done?"done":"",late?"late":"",e.skip?"skip":"",held&&!done&&today&&parseT(r[en])<=nowM?"muted":""].join(" ");
-  const chip=(isExit&&r.hike?'<span class="chip hike">引成</span>':"")+(r.dir==="short"?'<span class="chip short">売→買</span>':"")+(r.status==="Go"?'<span class="chip go">Go</span>':r.status==="Wait"?'<span class="chip wait">Wait</span>':r.status==="買わない"?'<span class="chip skip">買わない</span>':"");
+  const chip=(isExit&&r.hike?'<span class="chip hike">引成</span>':"")+(r.dir==="short"?'<span class="chip short">売→買</span>':"")+(stOf(r)==="Go"?'<span class="chip go">Go</span>':stOf(r)==="Wait"?'<span class="chip wait">Wait</span>':"");
   const o=isExit?en:ex, oT=parseT(r[o]);
   let other="";
   if(oT!=null){
@@ -486,11 +493,11 @@ function timeField(r,side,first){
 }
 function cardHtml(r){
   const en=entrySide(r), ex=exitSide(r);
-  return '<div class="erow'+(r.star?" star":"")+'" data-id="'+r.id+'">'
+  return '<div class="erow'+(r.star?" star":"")+(isSkip(r)?" skipped":"")+'" data-id="'+r.id+'">'
     +'<div class="g1"><input class="code-in" id="c-'+r.id+'" data-f="code" value="'+esc(r.code)+'" placeholder="コード" maxlength="5" autocapitalize="characters" inputmode="text"><input id="n-'+r.id+'" data-f="name" value="'+esc(r.name)+'" placeholder="銘柄名（コードで自動）"><button class="starbtn" data-star aria-pressed="'+r.star+'" aria-label="本命マーク">★</button></div>'
     +'<div class="g2">'+timeField(r,en,true)+timeField(r,ex,false)+'</div>'
     +'<div class="g3"><div class="seg dir"><button data-dir="long" aria-pressed="'+(r.dir!=="short")+'">買→売</button><button data-dir="short" aria-pressed="'+(r.dir==="short")+'">売→買</button></div>'
-    +'<div class="seg">'+["Go","Wait","買わない"].map(s=>'<button data-status="'+s+'" aria-pressed="'+(r.status===s)+'">'+s+'</button>').join("")+'</div><button class="del" data-del>削除</button></div>'
+    +'<div class="seg">'+["Go","Wait"].map(s=>'<button data-status="'+s+'" aria-pressed="'+(stOf(r)===s)+'">'+s+'</button>').join("")+'</div><button class="skipbtn" data-skip aria-pressed="'+isSkip(r)+'">買わない</button><button class="del" data-del>削除</button></div>'
     +'<input class="memo-in" id="m-'+r.id+'" data-f="memo" value="'+esc(r.memo)+'" placeholder="メモ（例：9:30にopen上回れば）">'
     +'</div>';
 }
@@ -516,7 +523,7 @@ function renderEdit(){
   let h='<div class="ed">';
   if(!S.rows.length)h+='<div class="empty" style="margin-top:4px"><p>銘柄を1行ずつ追加するか、下の「まとめて貼り付け」に入力してください。</p><button class="btn" data-copyprev>前日のリストをコピー</button></div>';
   S.rows.forEach(r=>{h+=cardHtml(r)});
-  h+='<div class="btnrow"><button class="btn primary" data-add>＋ 銘柄を追加</button>'+(S.rows.length?'<button class="btn danger" data-clearall>オールクリア（済・Go/Wait）</button>':'')+'</div>';
+  h+='<div class="btnrow"><button class="btn primary" data-add>＋ 銘柄を追加</button>'+(S.rows.length?'<button class="btn danger" data-clearall>オールクリア（済・Go/Wait・買わない）</button>':'')+'</div>';
   h+='<details class="paste"><summary>まとめて貼り付け</summary><p>1行1銘柄。「コード 時刻 買い 時刻 売り 銘柄名 Go/Wait/買わない メモ」の順。売りが先なら「9:30 売り 11:00 買い」と書けば売→買になります。銘柄名は省略してもコードから入ります。寄付は OPEN、引成は「引成」と書けます。</p><textarea id="pasteBox" placeholder="6758 OPEN 買い 15:30 売り Go&#10;8604 9:30 買い 11:30 売り Go&#10;9433 10:00 売り 12:59 買い Wait"></textarea><div class="btnrow"><button class="btn" data-paste="add">下に追加</button><button class="btn" data-paste="replace">全部置き換え</button></div></details>';
   h+='<details class="paste" id="xfer"><summary>別の端末へ移す（書き出し・取り込み）</summary>'
     +'<p>書き出し：この日のリストを文字にしてコピーします。もう一方のボードの「取り込み」に貼り付けてください。</p>'
@@ -604,11 +611,11 @@ $("editView").addEventListener("click",ev=>{
   if(ca){
     if(!ca.classList.contains("arm")){
       ca.classList.add("arm");ca.textContent="もう一度押すとクリア";
-      setTimeout(()=>{if(ca.isConnected){ca.classList.remove("arm");ca.textContent="オールクリア（済・Go/Wait）"}},3000);
+      setTimeout(()=>{if(ca.isConnected){ca.classList.remove("arm");ca.textContent="オールクリア（済・Go/Wait・買わない）"}},3000);
       return;
     }
-    S.rows.forEach(r=>{r.buyDone=false;r.sellDone=false;r.buyPx="";r.sellPx="";r.status=""});
-    S.open=null; save(); renderEdit(); toast("済・約定値・Go/Waitをクリアしました");
+    S.rows.forEach(r=>{r.buyDone=false;r.sellDone=false;r.buyPx="";r.sellPx="";r.status="";r.skip=false});
+    S.open=null; save(); renderEdit(); toast("済・約定値・Go/Wait・買わないをクリアしました");
     return;
   }
   if(t.closest("[data-export]")){
@@ -633,7 +640,14 @@ $("editView").addEventListener("click",ev=>{
   const r=rowOf(t); if(!r)return;
   if(t.closest("[data-star]")){r.star=!r.star;save();const w=t.closest(".erow");w.classList.toggle("star",r.star);t.setAttribute("aria-pressed",r.star);return}
   const st=t.closest("[data-status]");
-  if(st){r.status=r.status===st.dataset.status?"":st.dataset.status;save();st.parentNode.querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.status===r.status));return}
+  if(st){
+    if(r.status==="買わない"){r.status="";r.skip=true}
+    r.status=r.status===st.dataset.status?"":st.dataset.status;save();
+    st.parentNode.querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.status===r.status));return}
+  const sb=t.closest("[data-skip]");
+  if(sb){
+    const on=!isSkip(r); if(r.status==="買わない")r.status=""; r.skip=on; save();
+    sb.setAttribute("aria-pressed",on); t.closest(".erow").classList.toggle("skipped",on); return}
   const dr=t.closest("[data-dir]");
   if(dr){if(r.dir!==dr.dataset.dir){r.dir=dr.dataset.dir;save();t.closest(".erow").outerHTML=cardHtml(r)}return}
   const set=t.closest("[data-set]");
